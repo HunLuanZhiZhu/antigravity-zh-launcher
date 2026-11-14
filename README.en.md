@@ -4,7 +4,16 @@
 
 [简体中文](README.md) · [English](README.en.md)
 
-![Antigravity Dual-Entry Isolation Preview](docs/assets/preview-en.svg)
+![Full Chinese UI, execution chain, and Chinese AI reply](docs/assets/real-ui-zh.png)
+
+<details>
+<summary>More real screenshots (Chinese welcome page & dual-entry icons)</summary>
+
+![Localized Chinese welcome screen](docs/assets/real-welcome-zh.png)
+
+![Side-by-side stock English and Antigravity 中文 icons](docs/assets/real-dual-icons.png)
+
+</details>
 
 ## ⚡ One-Line Install
 

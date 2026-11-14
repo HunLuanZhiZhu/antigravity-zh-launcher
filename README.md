@@ -4,7 +4,16 @@
 
 [简体中文](README.md) · [English](README.en.md)
 
-![双入口效果预览](docs/assets/preview-zh.svg)
+![全中文界面、运行链路与 AI 中文回答实拍](docs/assets/real-ui-zh.png)
+
+<details>
+<summary>查看更多实拍效果（新会话欢迎页与双入口图标）</summary>
+
+![空白新会话中文欢迎页](docs/assets/real-welcome-zh.png)
+
+![原版英文与独立中文双图标并存](docs/assets/real-dual-icons.png)
+
+</details>
 
 ## ⚡ 一行命令安装
 
