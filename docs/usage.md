@@ -23,6 +23,7 @@
 | `agy-zh stop` | 停止汉化并关闭中文思考提示词 |
 | `agy-zh status` | 查看快捷方式、提示词开关与运行状态 |
 | `agy-zh prompt on \| off \| status` | 手动开启 / 关闭 / 查看中文思考提示词状态 |
+| `agy-zh build-overlay` | 重新提取并生成增强汉化覆盖脚本 |
 | `agy-zh shortcut` | 重新生成「Antigravity 中文」图标 / 快捷方式 |
 
 ---

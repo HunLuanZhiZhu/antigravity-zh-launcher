@@ -89,11 +89,15 @@
             Write-Host "$TagOk $(Resolve-ZhText '\u5df2\u5f7b\u5e95\u5220\u9664\u5b89\u88c5\u76ee\u5f55\u4e0e\u6c49\u5316\u5f15\u64ce:') $InstallRoot"
         }
     } else {
-        foreach ($f in @($AgyZhPs1, (Join-Path $BinDir 'agy-zh.cmd'))) {
+        foreach ($f in @($AgyZhPs1, (Join-Path $BinDir 'agy-zh.cmd'), (Join-Path $BinDir 'agy-zh-launch.vbs'), (Join-Path $BinDir 'antigravity-hans-overlay.js'))) {
             if (Test-Path $f) {
                 Remove-Item -Force $f
                 Write-Host "$TagOk $(Resolve-ZhText '\u5df2\u5220\u9664\u6587\u4ef6:') $f"
             }
+        }
+        $logsDir = Join-Path $InstallRoot 'logs'
+        if (Test-Path $logsDir) {
+            Remove-Item -Recurse -Force $logsDir
         }
         Write-Host "$TagWarn $(Resolve-ZhText '\u5df2\u4fdd\u7559\u5e95\u5c42\u6c49\u5316\u5f15\u64ce\uff08\u5982\u9700\u4e00\u5e76\u6e05\u7406\u8bf7\u8bbe\u7f6e $env:AGY_ZH_PURGE=''1'' \u540e\u91cd\u8dd1\u5378\u8f7d\uff09:') $HansExe"
     }

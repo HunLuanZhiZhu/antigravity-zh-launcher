@@ -23,6 +23,7 @@ The installer sets up the `agy-zh` command on both macOS and Windows (PowerShell
 | `agy-zh stop` | Stop localization and turn off the Chinese prompt plugin |
 | `agy-zh status` | Check shortcuts, prompt switch, and running state |
 | `agy-zh prompt on \| off \| status` | Manually turn the Chinese prompt plugin on, off, or check its state |
+| `agy-zh build-overlay` | Rebuild the enhanced UI localization overlay script |
 | `agy-zh shortcut` | Recreate the **Antigravity 中文** shortcut / app entry |
 
 ---

@@ -142,6 +142,8 @@ chmod 755 "$LOCAL_BIN/agy-zh"
 xattr -c "$LOCAL_BIN/agy-zh" >/dev/null 2>&1 || true
 echo "[成功] 双入口编排 CLI 已安装至: $LOCAL_BIN/agy-zh"
 
+"$LOCAL_BIN/agy-zh" build-overlay --force
+
 mkdir -p "$PLUGIN_DEST/assets" "$PLUGIN_DEST/rules"
 cp -f "$SOURCE_ROOT/plugins/$PLUGIN_NAME/plugin.json" "$PLUGIN_DEST/plugin.json"
 cp -f "$SOURCE_ROOT/plugins/$PLUGIN_NAME/assets/logo.svg" "$PLUGIN_DEST/assets/logo.svg"

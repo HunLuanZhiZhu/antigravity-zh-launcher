@@ -102,6 +102,11 @@ else
   done
 fi
 
+if [[ -f "$LOCAL_BIN/antigravity-hans-overlay.js" ]]; then
+  rm -f "$LOCAL_BIN/antigravity-hans-overlay.js"
+  echo "[成功] 已删除增强汉化覆盖脚本: $LOCAL_BIN/antigravity-hans-overlay.js"
+fi
+
 if [[ -f "$LOCAL_BIN/agy-zh" ]]; then
   rm -f "$LOCAL_BIN/agy-zh"
   echo "[成功] 已删除 CLI: $LOCAL_BIN/agy-zh"
