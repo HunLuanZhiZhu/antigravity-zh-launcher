@@ -1,0 +1,422 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Antigravity 中文双入口编排器 (macOS)
+# 负责在“中文入口”启动期间启用中文思考提示词插件，并在退出后自动复原，
+# 从而与原版 Antigravity 入口完全隔离。
+
+PLUGIN_NAME="antigravity-zh-prompt"
+CONFIG_DIR="${GEMINI_CONFIG_DIR:-$HOME/.gemini/config}"
+CONFIG_FILE="$CONFIG_DIR/config.json"
+PLUGIN_DIR="$CONFIG_DIR/plugins/$PLUGIN_NAME"
+LOG_DIR="$HOME/Library/Logs"
+LOG_FILE="$LOG_DIR/antigravity-hans.log"
+
+resolve_self_path() {
+  local src="${BASH_SOURCE[0]}"
+  local dir
+  dir="$(cd -P "$(dirname "$src")" && pwd)"
+  printf '%s/%s\n' "$dir" "$(basename "$src")"
+}
+
+find_hans_bin() {
+  if [[ -n "${AGY_HANS_BIN:-}" && -x "${AGY_HANS_BIN:-}" ]]; then
+    printf '%s\n' "$AGY_HANS_BIN"
+    return 0
+  fi
+  if [[ -x "$HOME/.local/bin/antigravity-hans" ]]; then
+    printf '%s\n' "$HOME/.local/bin/antigravity-hans"
+    return 0
+  fi
+  if command -v antigravity-hans >/dev/null 2>&1; then
+    command -v antigravity-hans
+    return 0
+  fi
+  return 1
+}
+
+find_original_app() {
+  local candidates=(
+    "/Applications/Antigravity.app"
+    "$HOME/Applications/Antigravity.app"
+  )
+  local app
+  for app in "${candidates[@]}"; do
+    if [[ -d "$app" ]]; then
+      printf '%s\n' "$app"
+      return 0
+    fi
+  done
+  return 1
+}
+
+find_shortcut_app() {
+  local candidates=(
+    "/Applications/Antigravity 中文.app"
+    "$HOME/Applications/Antigravity 中文.app"
+  )
+  local app
+  for app in "${candidates[@]}"; do
+    if [[ -d "$app" ]]; then
+      printf '%s\n' "$app"
+      return 0
+    fi
+  done
+  return 1
+}
+
+set_plugin_enabled() {
+  local enabled_str="$1"
+  python3 - "$CONFIG_FILE" "$PLUGIN_NAME" "$enabled_str" <<'PY'
+import json
+import os
+import sys
+import tempfile
+
+config_file, plugin_name, enabled_str = sys.argv[1], sys.argv[2], sys.argv[3]
+enabled = enabled_str.lower() == "true"
+config_dir = os.path.dirname(config_file)
+os.makedirs(config_dir, exist_ok=True)
+
+data = {}
+file_mode = 0o600
+if os.path.exists(config_file):
+    try:
+        file_mode = os.stat(config_file).st_mode & 0o777
+        with open(config_file, "r", encoding="utf-8") as f:
+            loaded = json.load(f)
+            if isinstance(loaded, dict):
+                data = loaded
+    except Exception as exc:
+        sys.stderr.write(f"[错误] 读取配置文件失败 ({config_file}): {exc}\n")
+        sys.exit(1)
+
+plugins = data.get("plugins")
+if not isinstance(plugins, dict):
+    plugins = {}
+data["plugins"] = plugins
+
+entry = plugins.get(plugin_name)
+if not isinstance(entry, dict):
+    entry = {}
+entry["enabled"] = enabled
+plugins[plugin_name] = entry
+
+fd, tmp_path = tempfile.mkstemp(prefix=".config.", suffix=".tmp", dir=config_dir)
+try:
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+        f.write("\n")
+    os.chmod(tmp_path, file_mode)
+    os.replace(tmp_path, config_file)
+except Exception:
+    if os.path.exists(tmp_path):
+        os.unlink(tmp_path)
+    raise
+PY
+}
+
+is_plugin_enabled() {
+  python3 - "$CONFIG_FILE" "$PLUGIN_DIR/plugin.json" "$PLUGIN_NAME" <<'PY'
+import json
+import os
+import sys
+
+config_file, plugin_json, plugin_name = sys.argv[1], sys.argv[2], sys.argv[3]
+
+if os.path.exists(config_file):
+    try:
+        with open(config_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        plugins = data.get("plugins", {})
+        if isinstance(plugins, dict) and isinstance(plugins.get(plugin_name), dict):
+            val = plugins[plugin_name].get("enabled")
+            if isinstance(val, bool):
+                print("true" if val else "false")
+                sys.exit(0)
+    except Exception:
+        pass
+
+if os.path.exists(plugin_json):
+    try:
+        with open(plugin_json, "r", encoding="utf-8") as f:
+            pdata = json.load(f)
+        if pdata.get("disabled") is True:
+            print("false")
+            sys.exit(0)
+        print("true")
+        sys.exit(0)
+    except Exception:
+        pass
+
+print("false")
+PY
+}
+
+list_active_hans_pids() {
+  ps -axo pid=,args= 2>/dev/null | awk '
+    $0 !~ /^[[:space:]]*[0-9]+[[:space:]]+awk/ {
+      cmd = $2
+      if (cmd ~ /(^|\/)antigravity-hans$/ && $0 ~ /(^|[[:space:]])--app([[:space:]]|$)/) {
+        print $1
+      }
+    }
+  '
+}
+
+has_active_hans_monitor() {
+  [[ -n "$(list_active_hans_pids)" ]]
+}
+
+cmd_start() {
+  local nogui="false"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --nogui)
+        nogui="true"
+        shift
+        ;;
+      *)
+        echo "[错误] start 子命令不支持参数: $1" >&2
+        exit 1
+        ;;
+    esac
+  done
+
+  local hans_bin
+  if ! hans_bin="$(find_hans_bin)"; then
+    echo "[错误] 未找到 antigravity-hans 汉化引擎，请先运行 install.sh 安装。" >&2
+    exit 1
+  fi
+
+  if [[ -f "$PLUGIN_DIR/plugin.json" ]]; then
+    set_plugin_enabled true
+  else
+    echo "[警告] 未在 $PLUGIN_DIR 找到提示词插件，本次仅启用中文界面。" >&2
+  fi
+
+  cleanup() {
+    local exit_code=$?
+    trap - EXIT INT TERM HUP
+    sleep 0.3
+    if ! has_active_hans_monitor; then
+      set_plugin_enabled false >/dev/null 2>&1 || true
+    fi
+    exit "$exit_code"
+  }
+  trap cleanup EXIT INT TERM HUP
+
+  if [[ "$nogui" == "true" ]]; then
+    "$hans_bin" --app --nogui
+  else
+    "$hans_bin" --app
+  fi
+}
+
+cmd_stop() {
+  local hans_bin=""
+  if hans_bin="$(find_hans_bin)"; then
+    "$hans_bin" --stop --app >/dev/null 2>&1 || true
+  fi
+  set_plugin_enabled false
+  echo "[成功] 已停止中文汉化监视器，并已关闭 $PLUGIN_NAME 插件（原版入口已恢复纯净）。"
+}
+
+cmd_prompt() {
+  local action="${1:-status}"
+  case "$action" in
+    on)
+      if [[ ! -f "$PLUGIN_DIR/plugin.json" ]]; then
+        echo "[错误] 插件未安装: $PLUGIN_DIR" >&2
+        exit 1
+      fi
+      set_plugin_enabled true
+      echo "[成功] 已手动开启全流程中文思考提示词插件 ($PLUGIN_NAME)。"
+      ;;
+    off)
+      set_plugin_enabled false
+      echo "[成功] 已手动关闭全流程中文思考提示词插件 ($PLUGIN_NAME)。"
+      ;;
+    status)
+      local state
+      state="$(is_plugin_enabled)"
+      if [[ "$state" == "true" ]]; then
+        echo "提示词插件 ($PLUGIN_NAME): 已开启 (enabled: true)"
+      else
+        echo "提示词插件 ($PLUGIN_NAME): 已关闭 (enabled: false)"
+      fi
+      ;;
+    *)
+      echo "[错误] 用法: agy-zh prompt <on|off|status>" >&2
+      exit 1
+      ;;
+  esac
+}
+
+cmd_shortcut() {
+  if [[ "$(uname -s)" != "Darwin" ]]; then
+    echo "[错误] shortcut 命令仅适用于 macOS。" >&2
+    exit 1
+  fi
+
+  local self_path
+  self_path="$(resolve_self_path)"
+
+  local apps_dir="/Applications"
+  if [[ ! -w "$apps_dir" ]]; then
+    apps_dir="$HOME/Applications"
+  fi
+  mkdir -p "$apps_dir"
+
+  local wrapper_app="$apps_dir/Antigravity 中文.app"
+  local contents_dir="$wrapper_app/Contents"
+  local macos_dir="$contents_dir/MacOS"
+  local resources_dir="$contents_dir/Resources"
+  mkdir -p "$macos_dir" "$resources_dir"
+
+  cat >"$contents_dir/Info.plist" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleExecutable</key>
+	<string>launcher</string>
+	<key>CFBundleIconFile</key>
+	<string>icon.icns</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.guuguo.antigravity.zh.launcher</string>
+	<key>CFBundleName</key>
+	<string>Antigravity 中文</string>
+	<key>CFBundleDisplayName</key>
+	<string>Antigravity 中文</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>LSUIElement</key>
+	<true/>
+</dict>
+</plist>
+PLIST
+
+  local escaped_self="${self_path//\'/\'\\\'\'}"
+  cat >"$macos_dir/launcher" <<LAUNCHER
+#!/bin/bash
+LOG_DIR="\$HOME/Library/Logs"
+LOG_FILE="\$LOG_DIR/antigravity-hans.log"
+mkdir -p "\$LOG_DIR"
+nohup '${escaped_self}' start --nogui >> "\$LOG_FILE" 2>&1 &
+LAUNCHER
+  chmod 755 "$macos_dir/launcher"
+
+  local orig_app=""
+  if orig_app="$(find_original_app)"; then
+    local orig_icon="$orig_app/Contents/Resources/icon.icns"
+    if [[ ! -f "$orig_icon" ]]; then
+      orig_icon="$(find "$orig_app/Contents/Resources" -maxdepth 1 -name '*.icns' 2>/dev/null | head -n 1 || true)"
+    fi
+    if [[ -n "$orig_icon" && -f "$orig_icon" ]]; then
+      cp -f "$orig_icon" "$resources_dir/icon.icns"
+    fi
+  fi
+
+  xattr -cr "$wrapper_app" >/dev/null 2>&1 || true
+  echo "[成功] 已生成独立中文入口应用: $wrapper_app"
+}
+
+cmd_status() {
+  local orig_app hans_bin shortcut_app plugin_state
+  echo "=== Antigravity 双入口汉化状态 ==="
+
+  if orig_app="$(find_original_app)"; then
+    echo "原版入口 (纯净英文): $orig_app"
+  else
+    echo "原版入口 (纯净英文): 未检测到 Antigravity.app"
+  fi
+
+  if shortcut_app="$(find_shortcut_app)"; then
+    echo "中文入口 (双效联动): $shortcut_app"
+  else
+    echo "中文入口 (双效联动): 未创建（可运行 agy-zh shortcut 生成）"
+  fi
+
+  if hans_bin="$(find_hans_bin)"; then
+    echo "动态汉化引擎 (CDP) : $hans_bin"
+  else
+    echo "动态汉化引擎 (CDP) : 未安装"
+  fi
+
+  if [[ -f "$PLUGIN_DIR/plugin.json" ]]; then
+    echo "中文思考提示词插件 : 已安装 ($PLUGIN_DIR)"
+  else
+    echo "中文思考提示词插件 : 未安装"
+  fi
+
+  plugin_state="$(is_plugin_enabled)"
+  if [[ "$plugin_state" == "true" ]]; then
+    echo "提示词当前开关状态 : 已开启 (enabled: true)"
+  else
+    echo "提示词当前开关状态 : 已关闭 (enabled: false，原版入口纯净)"
+  fi
+
+  local pids
+  pids="$(list_active_hans_pids | tr '\n' ' ' || true)"
+  if [[ -n "${pids// /}" ]]; then
+    echo "后台汉化监视器进程 : 运行中 (PID: ${pids% })"
+  else
+    echo "后台汉化监视器进程 : 未运行"
+  fi
+}
+
+cmd_help() {
+  cat <<'HELP'
+agy-zh - Antigravity 双入口无损汉化与中文思考提示词联动启动器
+
+用法:
+  agy-zh [start] [--nogui]   开启中文思考插件并启动 Antigravity 中文界面，退出后自动还原
+  agy-zh stop                停止后台汉化监视器，并立即关闭中文思考插件
+  agy-zh status              查看双入口、底层引擎、插件及监视进程状态
+  agy-zh prompt <on|off|status>
+                             手动开启、关闭或查询中文思考提示词插件状态
+  agy-zh shortcut            在应用程序目录生成「Antigravity 中文.app」
+  agy-zh help                显示此帮助信息
+
+环境变量:
+  AGY_HANS_BIN               自定义 antigravity-hans 二进制路径
+  GEMINI_CONFIG_DIR          自定义 Gemini 配置目录（默认 ~/.gemini/config）
+HELP
+}
+
+main() {
+  local subcmd="${1:-start}"
+  case "$subcmd" in
+    start)
+      shift || true
+      cmd_start "$@"
+      ;;
+    --nogui)
+      cmd_start "$@"
+      ;;
+    stop)
+      cmd_stop
+      ;;
+    status)
+      cmd_status
+      ;;
+    prompt)
+      shift || true
+      cmd_prompt "$@"
+      ;;
+    shortcut)
+      cmd_shortcut
+      ;;
+    help|--help|-h)
+      cmd_help
+      ;;
+    *)
+      echo "[错误] 未知命令: $subcmd" >&2
+      echo "运行 'agy-zh help' 查看用法。" >&2
+      exit 1
+      ;;
+  esac
+}
+
+main "$@"
