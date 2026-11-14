@@ -87,12 +87,20 @@ if [[ -d "$PLUGIN_DEST" ]]; then
   echo "[成功] 已删除提示词插件目录: $PLUGIN_DEST"
 fi
 
-for app in "/Applications/Antigravity 中文.app" "$HOME/Applications/Antigravity 中文.app"; do
+if [[ -n "${AGY_ZH_APPS_DIR:-}" ]]; then
+  app="$AGY_ZH_APPS_DIR/Antigravity 中文.app"
   if [[ -d "$app" ]]; then
     rm -rf "$app"
     echo "[成功] 已删除中文启动应用: $app"
   fi
-done
+else
+  for app in "/Applications/Antigravity 中文.app" "$HOME/Applications/Antigravity 中文.app"; do
+    if [[ -d "$app" ]]; then
+      rm -rf "$app"
+      echo "[成功] 已删除中文启动应用: $app"
+    fi
+  done
+fi
 
 if [[ -f "$LOCAL_BIN/agy-zh" ]]; then
   rm -f "$LOCAL_BIN/agy-zh"

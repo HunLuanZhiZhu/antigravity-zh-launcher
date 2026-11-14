@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 520" width="960" height="520" role="img" aria-label="Antigravity Dual-Entry Isolation Preview">
+  <defs>
+    <linearGradient id="canvasBg" x1="0" y1="0" x2="960" y2="520" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0B1120"/>
+      <stop offset="100%" stop-color="#111827"/>
+    </linearGradient>
+    <linearGradient id="zhHeaderGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#1E3A8A" stop-opacity="0.65"/>
+      <stop offset="100%" stop-color="#0F172A" stop-opacity="0.8"/>
+    </linearGradient>
+    <linearGradient id="pillGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2563EB"/>
+      <stop offset="100%" stop-color="#1D4ED8"/>
+    </linearGradient>
+    <style>
+      .sans { font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    </style>
+  </defs>
+
+  <!-- Canvas -->
+  <rect x="0" y="0" width="960" height="520" rx="18" fill="url(#canvasBg)"/>
+  <rect x="0.5" y="0.5" width="959" height="519" rx="17.5" fill="none" stroke="#1E293B"/>
+
+  <!-- Top Banner -->
+  <text x="28" y="38" class="sans" font-size="18" font-weight="700" fill="#F8FAFC">Antigravity Dual-Entry Isolation · Stock English vs Chinese Mode</text>
+  <text x="28" y="57" class="sans" font-size="12" fill="#94A3B8">Keep the stock English app untouched while launching "Antigravity 中文" for Chinese UI + Chinese Thinking</text>
+
+  <rect x="712" y="22" width="220" height="28" rx="14" fill="#064E3B" fill-opacity="0.55" stroke="#10B981" stroke-opacity="0.45"/>
+  <text x="822" y="40" text-anchor="middle" class="sans" font-size="11.5" font-weight="600" fill="#6EE7B7">Zero ASAR Patch · Signature Intact</text>
+
+  <!-- Left Card: Original Entry -->
+  <g transform="translate(28, 76)">
+    <rect x="0" y="0" width="434" height="416" rx="14" fill="#0F172A" stroke="#334155"/>
+    <rect x="0" y="0" width="434" height="50" rx="14" fill="#1E293B"/>
+    <rect x="0" y="36" width="434" height="14" fill="#1E293B"/>
+    <circle cx="24" cy="25" r="12" fill="#334155"/>
+    <path d="M24 17 L30 31 H27 L25.6 27.5 H22.4 L21 31 H18 Z M22.9 25.5 H25.1 L24 22.3 Z" fill="#E2E8F0"/>
+    <text x="44" y="24" class="sans" font-size="13.5" font-weight="700" fill="#F1F5F9">Antigravity</text>
+    <text x="44" y="39" class="sans" font-size="10.5" fill="#94A3B8">Original Shortcut / Stock App</text>
+    <rect x="328" y="13" width="92" height="24" rx="12" fill="#334155"/>
+    <text x="374" y="29" text-anchor="middle" class="sans" font-size="11" font-weight="600" fill="#E2E8F0">Stock English</text>
+
+    <!-- Mock Window -->
+    <rect x="14" y="62" width="406" height="294" rx="10" fill="#090D16" stroke="#1E293B"/>
+    <rect x="14" y="62" width="112" height="294" rx="10" fill="#0D1322"/>
+    <rect x="114" y="62" width="12" height="294" fill="#0D1322"/>
+    <line x1="126" y1="62" x2="126" y2="356" stroke="#1E293B"/>
+
+    <rect x="22" y="74" width="96" height="24" rx="6" fill="#1E293B"/>
+    <text x="30" y="90" class="sans" font-size="10.5" font-weight="600" fill="#E2E8F0">+ New Chat</text>
+    <text x="26" y="120" class="sans" font-size="11" fill="#94A3B8">Projects</text>
+    <text x="26" y="144" class="sans" font-size="11" fill="#94A3B8">Scheduled Tasks</text>
+    <text x="26" y="168" class="sans" font-size="11" fill="#94A3B8">Skills</text>
+    <text x="26" y="192" class="sans" font-size="11" fill="#94A3B8">Settings</text>
+
+    <text x="142" y="88" class="sans" font-size="11" font-weight="600" fill="#CBD5E1">Chat Canvas</text>
+    <rect x="142" y="100" width="264" height="72" rx="8" fill="#111827" stroke="#334155"/>
+    <text x="154" y="120" class="sans" font-size="11" font-weight="600" fill="#94A3B8">▾ Thought for 3s</text>
+    <text x="154" y="139" class="sans" font-size="10.5" fill="#64748B">Inspecting repository layout and checking</text>
+    <text x="154" y="155" class="sans" font-size="10.5" fill="#64748B">existing configuration files before editing...</text>
+
+    <rect x="142" y="186" width="264" height="74" rx="8" fill="#131C31"/>
+    <text x="154" y="207" class="sans" font-size="11" fill="#E2E8F0">I have reviewed the workspace structure and</text>
+    <text x="154" y="224" class="sans" font-size="11" fill="#E2E8F0">verified all unit checks pass without errors.</text>
+    <text x="154" y="244" class="mono" font-size="10" fill="#60A5FA">antigravity-zh-prompt: disabled</text>
+
+    <rect x="142" y="314" width="264" height="28" rx="6" fill="#0F172A" stroke="#334155"/>
+    <text x="154" y="332" class="sans" font-size="10.5" fill="#64748B">Ask anything...</text>
+
+    <rect x="14" y="370" width="406" height="32" rx="8" fill="#064E3B" fill-opacity="0.45" stroke="#10B981" stroke-opacity="0.35"/>
+    <text x="217" y="390" text-anchor="middle" class="sans" font-size="11.5" font-weight="600" fill="#6EE7B7">Stock prompt rules · Completely isolated from Chinese entry</text>
+  </g>
+
+  <!-- Center Divider -->
+  <line x1="480" y1="96" x2="480" y2="472" stroke="#1E293B" stroke-dasharray="4 4"/>
+  <rect x="454" y="266" width="52" height="28" rx="14" fill="#1E293B" stroke="#334155"/>
+  <text x="480" y="284" text-anchor="middle" class="sans" font-size="10.5" font-weight="700" fill="#94A3B8">Isolated</text>
+
+  <!-- Right Card: Chinese Entry -->
+  <g transform="translate(498, 76)">
+    <rect x="0" y="0" width="434" height="416" rx="14" fill="#0F172A" stroke="#2563EB" stroke-opacity="0.8"/>
+    <rect x="0" y="0" width="434" height="50" rx="14" fill="url(#zhHeaderGrad)"/>
+    <rect x="0" y="36" width="434" height="14" fill="#162856"/>
+    <circle cx="24" cy="25" r="12" fill="#2563EB"/>
+    <text x="24" y="29" text-anchor="middle" class="sans" font-size="12" font-weight="700" fill="#FFFFFF">中</text>
+    <text x="44" y="24" class="sans" font-size="13.5" font-weight="700" fill="#FFFFFF">Antigravity 中文</text>
+    <text x="44" y="39" class="sans" font-size="10.5" fill="#93C5FD">Desktop / Start Menu / Applications</text>
+    <rect x="314" y="13" width="106" height="24" rx="12" fill="#2563EB"/>
+    <text x="367" y="29" text-anchor="middle" class="sans" font-size="11" font-weight="600" fill="#FFFFFF">UI + Thinking ZH</text>
+
+    <!-- Mock Window -->
+    <rect x="14" y="62" width="406" height="294" rx="10" fill="#090D16" stroke="#1E3A8A" stroke-opacity="0.7"/>
+    <rect x="14" y="62" width="112" height="294" rx="10" fill="#0D1322"/>
+    <rect x="114" y="62" width="12" height="294" fill="#0D1322"/>
+    <line x1="126" y1="62" x2="126" y2="356" stroke="#1E293B"/>
+
+    <rect x="22" y="74" width="96" height="24" rx="6" fill="#1D4ED8"/>
+    <text x="30" y="90" class="sans" font-size="10.5" font-weight="600" fill="#FFFFFF">+ 新建对话</text>
+    <text x="26" y="120" class="sans" font-size="11" fill="#CBD5E1">项目列表</text>
+    <text x="26" y="144" class="sans" font-size="11" fill="#CBD5E1">定时任务</text>
+    <text x="26" y="168" class="sans" font-size="11" fill="#CBD5E1">技能与自定义</text>
+    <text x="26" y="192" class="sans" font-size="11" fill="#CBD5E1">设置中心</text>
+
+    <text x="142" y="88" class="sans" font-size="11" font-weight="600" fill="#E2E8F0">对话画布</text>
+    <rect x="142" y="100" width="264" height="74" rx="8" fill="#0F1B33" stroke="#3B82F6" stroke-opacity="0.65"/>
+    <rect x="142" y="100" width="3.5" height="74" rx="1.5" fill="#3B82F6"/>
+    <text x="155" y="120" class="sans" font-size="11" font-weight="700" fill="#93C5FD">▾ 思考过程 (Thinking)</text>
+    <text x="155" y="139" class="sans" font-size="10.5" fill="#CBD5E1">先定位核心配置文件与项目结构，</text>
+    <text x="155" y="156" class="sans" font-size="10.5" fill="#CBD5E1">再制定最小改动方案并校验脚本...</text>
+
+    <rect x="142" y="186" width="264" height="74" rx="8" fill="#131C31"/>
+    <text x="154" y="207" class="sans" font-size="11" fill="#F8FAFC">已完成配置分析与修改，关键步骤与</text>
+    <text x="154" y="224" class="sans" font-size="11" fill="#F8FAFC">验证结果已整理为中文输出如下：</text>
+    <text x="154" y="244" class="mono" font-size="10" fill="#34D399">antigravity-zh-prompt: enabled</text>
+
+    <rect x="142" y="314" width="194" height="28" rx="6" fill="#0F172A" stroke="#334155"/>
+    <text x="154" y="332" class="sans" font-size="10.5" fill="#64748B">输入指令或提问...</text>
+
+    <rect x="344" y="312" width="66" height="30" rx="15" fill="url(#pillGrad)" stroke="#93C5FD" stroke-opacity="0.7"/>
+    <text x="377" y="331" text-anchor="middle" class="sans" font-size="11" font-weight="700" fill="#FFFFFF">中 / EN</text>
+    <text x="377" y="305" text-anchor="middle" class="sans" font-size="9.5" fill="#93C5FD">Live Toggle</text>
+
+    <rect x="14" y="370" width="406" height="32" rx="8" fill="#1E3A8A" fill-opacity="0.45" stroke="#3B82F6" stroke-opacity="0.45"/>
+    <text x="217" y="390" text-anchor="middle" class="sans" font-size="11.5" font-weight="600" fill="#93C5FD">Auto-enables Chinese thinking plugin · Resets on exit</text>
+  </g>
+</svg>

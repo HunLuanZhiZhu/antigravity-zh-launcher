@@ -22,6 +22,8 @@ Want to keep your **original English Antigravity** completely untouched while ha
 - **Launch original Antigravity**: 100% stock English UI + 100% original global prompts.
 - **Launch “Antigravity 中文”**: Automatically enables the full-workflow Chinese thinking prompt plugin + launches CDP-based live UI localization. As soon as you exit, the prompt plugin is **automatically turned back off**.
 
+![Antigravity Dual-Entry Isolation Preview](docs/assets/preview-en.svg)
+
 ---
 
 ## Key Features
@@ -88,15 +90,76 @@ irm https://raw.githubusercontent.com/guuguo/antigravity-zh-launcher/main/instal
 ```
 
 What gets installed:
-- Desktop shortcut: `Antigravity 中文` (inherits official icon, launches silently without a console window)
-- Orchestrator scripts: `%LOCALAPPDATA%\antigravity-zh-launcher\bin\agy-zh.cmd`
+- **Desktop shortcut** + **Start Menu shortcut**: `Antigravity 中文` (inherits the official icon, launches silently without a console window)
+- Orchestrator CLI: `%LOCALAPPDATA%\antigravity-zh-launcher\bin\agy-zh.cmd` (automatically added to your User `Path` so `agy-zh` works directly in PowerShell/CMD)
 - Prompt plugin: `%USERPROFILE%\.gemini\config\plugins\antigravity-zh-prompt` (disabled by default)
+
+---
+
+## What Happens After Running the Installer?
+
+Here is exactly what changes on your machine after running `irm ... | iex` or `curl ... | bash`, in three steps:
+
+### 1) Terminal Output
+
+<details>
+<summary>Expand: sample terminal output on Windows and macOS</summary>
+
+**Windows PowerShell**:
+```text
+[信息] 正在从 GitHub 下载全流程中文思考提示词插件...
+[信息] 正在下载汉化引擎并验证 SHA-256: antigravity-hans-windows-amd64.exe
+[成功] 汉化引擎已安装并通过 SHA-256 校验: C:\Users\<you>\AppData\Local\antigravity-zh-launcher\bin\antigravity-hans.exe
+[成功] 已将命令行目录加入用户 Path: C:\Users\<you>\AppData\Local\antigravity-zh-launcher\bin
+[成功] 已创建「Antigravity 中文」快捷方式: C:\Users\<you>\Desktop\Antigravity 中文.lnk
+[成功] 已创建「Antigravity 中文」快捷方式: C:\Users\<you>\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Antigravity 中文.lnk
+
+安装完成！
+```
+
+**macOS Terminal**:
+```text
+[信息] 正在从 GitHub 下载 antigravity-zh-launcher 套件文件...
+[信息] 正在下载汉化引擎 (antigravity-hans-macos-arm64) 并验证 SHA-256...
+[成功] 汉化引擎已安装至: /Users/<you>/.local/bin/antigravity-hans
+[成功] 双入口编排 CLI 已安装至: /Users/<you>/.local/bin/agy-zh
+[成功] 全流程中文思考提示词插件已安装至: /Users/<you>/.gemini/config/plugins/antigravity-zh-prompt
+[信息] 已确保插件默认保持关闭状态，原版 Antigravity 入口不受影响。
+[成功] 已生成独立中文入口应用: /Applications/Antigravity 中文.app
+```
+
+</details>
+
+### 2) Two Side-by-Side Shortcuts (No Overwrite)
+
+Your original installation is left completely untouched. A dedicated **“Antigravity 中文”** entry appears right beside it:
+
+```text
+Windows (Desktop & Start Menu search)          macOS (Applications / Launchpad / Spotlight)
+  ├── Antigravity        ← Stock English         ├── Antigravity.app       ← Stock English
+  └── Antigravity 中文   ← Chinese Entry         └── Antigravity 中文.app  ← Chinese Entry
+```
+
+- **Windows**: Double-click the Desktop shortcut or search **“Antigravity 中文”** in the Start Menu—no flashing console window and no duplicate taskbar icon.
+- **macOS**: Configured with `LSUIElement = true`, so the Dock only shows a single Antigravity icon.
+
+### 3) Three Visible Changes When Launching “Antigravity 中文”
+
+1. **Full Chinese UI**: Sidebars, dialogs, permission prompts, and settings pages are dynamically translated via CDP.
+2. **Floating “中 / EN” Toggle Pill**: Appears in the bottom-right corner—click to switch UI languages live, right-click/double-click for options (like keeping permission/effort labels in English), or drag to reposition.
+3. **Chinese Thinking Chain & Output**: Launching “Antigravity 中文” automatically turns on `antigravity-zh-prompt`, and exiting turns it back off:
+
+| Aspect | Launching Original `Antigravity` | Launching `Antigravity 中文` |
+| --- | --- | --- |
+| **UI Language** | Stock English | Simplified Chinese + live **中 / EN** toggle |
+| **Thought / Thinking** | `Inspecting project layout...` (English) | `先排查项目配置文件与目录结构...` (Simplified Chinese) |
+| **Plan / Replies / Summaries** | English | Simplified Chinese (code symbols, paths, CLI flags & raw errors stay intact) |
 
 ---
 
 ## Usage
 
-1. **Chinese Mode**: Open **“Antigravity 中文”** from Applications / Spotlight (macOS) or your Desktop shortcut (Windows).
+1. **Chinese Mode**: Open **“Antigravity 中文”** from Applications / Spotlight (macOS) or your Desktop / Start Menu shortcut (Windows).
    > **Tip**: If the original Antigravity app is already running without a debug port, quit it completely first (`⌘Q` on macOS) before opening “Antigravity 中文”.
 2. **Original English Mode**: After exiting Chinese mode, simply open the original **Antigravity** app—both UI and agent prompts return to stock behavior.
 3. **In-App Toggle**: Click the translucent **中 / EN** button in the bottom-right corner to switch UI languages on the fly, or right-click / double-click it for options.
@@ -105,7 +168,7 @@ What gets installed:
 
 ## CLI Reference
 
-Run `agy-zh` in your terminal (or `%LOCALAPPDATA%\antigravity-zh-launcher\bin\agy-zh.cmd` on Windows):
+Run `agy-zh` directly in your terminal on both macOS and Windows (automatically added to your User `Path`):
 
 | Command | Description |
 | --- | --- |
@@ -139,9 +202,12 @@ Changes take effect only when launching through **“Antigravity 中文”** and
 
 - **Windows (PowerShell)**:
   ```powershell
+  # Uninstall launcher, Desktop & Start Menu shortcuts, User Path entry, and prompt plugin
   irm https://raw.githubusercontent.com/guuguo/antigravity-zh-launcher/main/uninstall.ps1 | iex
+
+  # Also purge the underlying engine directory completely:
+  $env:AGY_ZH_PURGE='1'; irm https://raw.githubusercontent.com/guuguo/antigravity-zh-launcher/main/uninstall.ps1 | iex
   ```
-  *(Pass `-Purge` when running locally to remove the engine directory as well.)*
 
 ---
 

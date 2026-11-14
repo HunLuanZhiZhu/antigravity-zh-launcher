@@ -22,6 +22,8 @@
 - **从原版入口启动**：100% 原厂英文界面 + 100% 原始提示词环境，互不干扰。
 - **从「Antigravity 中文」启动**：自动激活全流程中文思考提示词插件 + 拉起 CDP 动态界面汉化；当你退出中文模式时，提示词插件**自动关闭复原**。
 
+![Antigravity 双入口无损汉化效果示意图](docs/assets/preview-zh.svg)
+
 ---
 
 ## 核心特色
@@ -92,15 +94,86 @@ irm https://raw.githubusercontent.com/guuguo/antigravity-zh-launcher/main/instal
 ```
 
 安装完成后将会自动生成：
-- 桌面快捷方式：`Antigravity 中文`（已继承原版应用图标，无控制台黑框弹出）
-- 本地套件与命令：`%LOCALAPPDATA%\antigravity-zh-launcher\bin\agy-zh.cmd`
+- **桌面快捷方式** + **开始菜单快捷方式**：`Antigravity 中文`（已继承原版应用图标，通过 `-WindowStyle Hidden` 静默启动，无控制台黑框弹出）
+- 本地套件与命令：`%LOCALAPPDATA%\antigravity-zh-launcher\bin\agy-zh.cmd`（安装脚本会自动将该目录写入用户级 `Path`，安装完可直接在终端输入 `agy-zh`）
 - 原生提示词插件：`%USERPROFILE%\.gemini\config\plugins\antigravity-zh-prompt`（默认处于关闭状态）
+
+---
+
+## 安装完成后是以什么方式呈现的？
+
+很多朋友会关心：执行完 `irm ... | iex` 或 `curl ... | bash` 后，电脑里会多出什么？点开以后到底是什么样？下面按 **安装 → 桌面入口 → 打开后界面** 三步直观展示：
+
+### 1) 终端安装实录
+
+运行一键安装命令后，终端会自动下载校验引擎、写入插件并生成快捷入口，你会看到类似下面的输出：
+
+<details>
+<summary>点击展开：Windows (irm ... | iex) 与 macOS (curl ... | bash) 终端输出示例</summary>
+
+**Windows PowerShell 输出示例**：
+```text
+[信息] 正在从 GitHub 下载全流程中文思考提示词插件...
+[信息] 正在下载汉化引擎并验证 SHA-256: antigravity-hans-windows-amd64.exe
+[成功] 汉化引擎已安装并通过 SHA-256 校验: C:\Users\<你>\AppData\Local\antigravity-zh-launcher\bin\antigravity-hans.exe
+[成功] 已将命令行目录加入用户 Path: C:\Users\<你>\AppData\Local\antigravity-zh-launcher\bin
+[成功] 已创建「Antigravity 中文」快捷方式: C:\Users\<你>\Desktop\Antigravity 中文.lnk
+[成功] 已创建「Antigravity 中文」快捷方式: C:\Users\<你>\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Antigravity 中文.lnk
+
+安装完成！
+  • 原始英文入口：照常打开原版 Antigravity（保持原厂英文 UI 与原始提示词）
+  • 独立中文入口：双击桌面或开始菜单中的「Antigravity 中文」快捷方式
+  • 命令行管理  ：在终端运行 agy-zh status 或使用: C:\Users\<你>\AppData\Local\antigravity-zh-launcher\bin\agy-zh.cmd
+```
+
+**macOS 终端输出示例**：
+```text
+[信息] 正在从 GitHub 下载 antigravity-zh-launcher 套件文件...
+[信息] 正在下载汉化引擎 (antigravity-hans-macos-arm64) 并验证 SHA-256...
+[成功] 汉化引擎已安装至: /Users/<你>/.local/bin/antigravity-hans
+[成功] 双入口编排 CLI 已安装至: /Users/<你>/.local/bin/agy-zh
+[成功] 全流程中文思考提示词插件已安装至: /Users/<你>/.gemini/config/plugins/antigravity-zh-prompt
+[信息] 已确保插件默认保持关闭状态，原版 Antigravity 入口不受影响。
+[成功] 已生成独立中文入口应用: /Applications/Antigravity 中文.app
+
+🎉 安装完成！
+```
+
+</details>
+
+### 2) 电脑桌面与菜单里的「双图标」呈现
+
+安装**不会替换原版应用**，而是在你原有的 `Antigravity` 旁边多出一个**独立的 `Antigravity 中文` 启动入口**：
+
+```text
+Windows（桌面 & 按 Win 键搜索开始菜单）      macOS（应用程序 / 启动台 / Spotlight）
+  ├── Antigravity        ← 原厂英文入口          ├── Antigravity.app       ← 原厂英文入口
+  └── Antigravity 中文   ← 新增独立中文入口      └── Antigravity 中文.app  ← 新增独立中文入口
+```
+
+- **Windows**：直接双击桌面图标或在开始菜单搜索「**Antigravity 中文**」即可；启动过程无黑框闪烁，任务栏也只显示原版 Antigravity 窗口图标。
+- **macOS**：启动器配置了 `LSUIElement`，因此 Dock 栏只会看到一个 Antigravity 图标，不会出现多余的第二个图标。
+
+### 3) 点开「Antigravity 中文」后的三大可见变化
+
+1. **菜单与面板全中文**：侧边栏（新建对话、项目、定时任务、技能、设置中心）、权限确认弹窗、模型推理选项等均通过 CDP 实时渲染为简体中文。
+2. **右下角「中 / EN」悬浮切换圆钮**：窗口右下角常驻一个半透明小圆钮：
+   - **单击**：中文 / 英文界面即时切换，无需重启；
+   - **右键 / 双击**：打开偏好菜单，可勾选「选项名保留英文」；
+   - **拖拽**：自由移动到窗口任意角落。
+3. **AI 思考链（Thinking）与回复全流程中文**：启动中文版瞬间自动开启 `antigravity-zh-prompt` 插件，退出后自动关闭。对比效果如下：
+
+| 对比项 | 从原版 `Antigravity` 启动 | 从 `Antigravity 中文` 启动 |
+| --- | --- | --- |
+| **界面语言** | 英文原版菜单与设置 | 简体中文界面 + 右下角「中 / EN」悬浮切换 |
+| **Thought 思考链** | `Inspecting project layout...`（英文） | `先排查项目配置文件与目录结构...`（简体中文） |
+| **Plan / 回复 / 摘要** | 英文 | 简体中文（仅代码标识、路径、命令与报错保留英文原样） |
 
 ---
 
 ## 日常使用指南
 
-1. **打开中文版**：直接打开 **「Antigravity 中文」**（macOS 应用程序 / Spotlight，或 Windows 桌面快捷方式）。
+1. **打开中文版**：直接打开 **「Antigravity 中文」**（macOS 应用程序 / Spotlight，或 Windows 桌面 / 开始菜单快捷方式）。
    > **注意**：如果原版 Antigravity 当前已经在运行，请先完全退出原版（macOS 按 `⌘Q`），再打开「Antigravity 中文」，以便加载调试端口并注入中文界面。
 2. **打开原始英文版**：退出中文版后，照常打开原版 **Antigravity** 即可，界面和提示词都会保持 100% 原始英文状态。
 3. **快速切换中英文界面**：在中文模式下，窗口右下角会出现半透明 **「中 / EN」** 小圆钮：
@@ -112,7 +185,7 @@ irm https://raw.githubusercontent.com/guuguo/antigravity-zh-launcher/main/instal
 
 ## CLI 管理命令速查
 
-macOS 终端中可直接使用 `agy-zh`（Windows 可使用 `%LOCALAPPDATA%\antigravity-zh-launcher\bin\agy-zh.cmd`）：
+macOS 与 Windows（已自动加入用户 `Path`）均可在终端直接运行 `agy-zh`：
 
 | 命令 | 作用说明 |
 | --- | --- |
@@ -149,10 +222,12 @@ macOS 终端中可直接使用 `agy-zh`（Windows 可使用 `%LOCALAPPDATA%\anti
 
 - **Windows (PowerShell)**：
   ```powershell
-  # 卸载启动器、桌面快捷方式与提示词插件
+  # 卸载启动器、桌面/开始菜单快捷方式、用户 Path 与提示词插件
   irm https://raw.githubusercontent.com/guuguo/antigravity-zh-launcher/main/uninstall.ps1 | iex
+
+  # 如需连同底层引擎目录一起彻底删除：
+  $env:AGY_ZH_PURGE='1'; irm https://raw.githubusercontent.com/guuguo/antigravity-zh-launcher/main/uninstall.ps1 | iex
   ```
-  *(本地下载后运行 `./uninstall.ps1 -Purge` 可连同引擎目录彻底删除)*
 
 ---
 

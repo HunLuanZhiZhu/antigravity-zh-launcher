@@ -36,7 +36,11 @@ find_hans_bin() {
 }
 
 find_original_app() {
-  local candidates=(
+  local candidates=()
+  if [[ -n "${AGY_ZH_APPS_DIR:-}" ]]; then
+    candidates+=("$AGY_ZH_APPS_DIR/Antigravity.app")
+  fi
+  candidates+=(
     "/Applications/Antigravity.app"
     "$HOME/Applications/Antigravity.app"
   )
@@ -51,6 +55,13 @@ find_original_app() {
 }
 
 find_shortcut_app() {
+  if [[ -n "${AGY_ZH_APPS_DIR:-}" ]]; then
+    if [[ -d "$AGY_ZH_APPS_DIR/Antigravity 中文.app" ]]; then
+      printf '%s\n' "$AGY_ZH_APPS_DIR/Antigravity 中文.app"
+      return 0
+    fi
+    return 1
+  fi
   local candidates=(
     "/Applications/Antigravity 中文.app"
     "$HOME/Applications/Antigravity 中文.app"
@@ -262,9 +273,12 @@ cmd_shortcut() {
   local self_path
   self_path="$(resolve_self_path)"
 
-  local apps_dir="/Applications"
-  if [[ ! -w "$apps_dir" ]]; then
-    apps_dir="$HOME/Applications"
+  local apps_dir="${AGY_ZH_APPS_DIR:-}"
+  if [[ -z "$apps_dir" ]]; then
+    apps_dir="/Applications"
+    if [[ ! -w "$apps_dir" ]]; then
+      apps_dir="$HOME/Applications"
+    fi
   fi
   mkdir -p "$apps_dir"
 

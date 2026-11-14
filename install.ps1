@@ -1,78 +1,88 @@
-﻿param(
-    [switch]$UpdateEngine,
-    [switch]$NoShortcut
-)
+& {
+    $ErrorActionPreference = 'Stop'
+    try { Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force -ErrorAction SilentlyContinue } catch {}
+    try { [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false) } catch {}
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$ErrorActionPreference = 'Stop'
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    function Resolve-ZhText {
+        param([string]$Text)
+        return [regex]::Unescape($Text)
+    }
 
-$RepoRawBase = if ($env:AGY_ZH_REPO_RAW) { $env:AGY_ZH_REPO_RAW } else { 'https://raw.githubusercontent.com/guuguo/antigravity-zh-launcher/main' }
-$HansReleaseBase = 'https://github.com/yuexps/Antigravity-Hans/releases/latest/download'
-$PluginName = 'antigravity-zh-prompt'
+    $TagInfo = Resolve-ZhText '[\u4fe1\u606f]'
+    $TagOk   = Resolve-ZhText '[\u6210\u529f]'
 
-$InstallRoot = Join-Path $env:LOCALAPPDATA 'antigravity-zh-launcher'
-$BinDir = Join-Path $InstallRoot 'bin'
-$HansExe = Join-Path $BinDir 'antigravity-hans.exe'
-$AgyZhPs1 = Join-Path $BinDir 'agy-zh.ps1'
-$AgyZhCmd = Join-Path $BinDir 'agy-zh.cmd'
+    $UpdateEngine = ($env:AGY_ZH_UPDATE_ENGINE -eq '1')
+    $NoShortcut   = ($env:AGY_ZH_NO_SHORTCUT -eq '1')
 
-$ConfigDir = if ($env:GEMINI_CONFIG_DIR) { $env:GEMINI_CONFIG_DIR } else { Join-Path $env:USERPROFILE '.gemini\config' }
-$PluginDir = Join-Path $ConfigDir "plugins\$PluginName"
+    $RepoRawBase = if ($env:AGY_ZH_REPO_RAW) { $env:AGY_ZH_REPO_RAW } else { 'https://raw.githubusercontent.com/guuguo/antigravity-zh-launcher/main' }
+    $HansReleaseBase = 'https://github.com/yuexps/Antigravity-Hans/releases/latest/download'
+    $PluginName = 'antigravity-zh-prompt'
 
-New-Item -ItemType Directory -Force -Path $BinDir, (Join-Path $PluginDir 'assets'), (Join-Path $PluginDir 'rules') | Out-Null
+    $InstallRoot = Join-Path $env:LOCALAPPDATA 'antigravity-zh-launcher'
+    $BinDir      = Join-Path $InstallRoot 'bin'
+    $HansExe     = Join-Path $BinDir 'antigravity-hans.exe'
+    $AgyZhPs1    = Join-Path $BinDir 'agy-zh.ps1'
+    $AgyZhCmd    = Join-Path $BinDir 'agy-zh.cmd'
+    $PsExe       = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 
-# 1. 部署提示词插件（优先使用本地仓库文件，支持 irm | iex 远程安装）
-$LocalRepoRoot = if ($PSScriptRoot) { $PSScriptRoot } else { '' }
-$IsLocalRepo = ($LocalRepoRoot -ne '') -and (Test-Path (Join-Path $LocalRepoRoot "plugins\$PluginName\plugin.json"))
+    $ConfigDir = if ($env:GEMINI_CONFIG_DIR) { $env:GEMINI_CONFIG_DIR } else { Join-Path $env:USERPROFILE '.gemini\config' }
+    $PluginDir = Join-Path $ConfigDir "plugins\$PluginName"
 
-if ($IsLocalRepo) {
-    Write-Host "[信息] 使用本地仓库源文件安装提示词插件: $LocalRepoRoot"
-    Copy-Item -Force (Join-Path $LocalRepoRoot "plugins\$PluginName\plugin.json") (Join-Path $PluginDir 'plugin.json')
-    Copy-Item -Force (Join-Path $LocalRepoRoot "plugins\$PluginName\assets\logo.svg") (Join-Path $PluginDir 'assets\logo.svg')
-    Copy-Item -Force (Join-Path $LocalRepoRoot "plugins\$PluginName\rules\AGENTS.md") (Join-Path $PluginDir 'rules\AGENTS.md')
-} else {
-    Write-Host '[信息] 正在从 GitHub 下载全流程中文思考提示词插件...'
-    Invoke-WebRequest -UseBasicParsing -Uri "$RepoRawBase/plugins/$PluginName/plugin.json" -OutFile (Join-Path $PluginDir 'plugin.json')
-    Invoke-WebRequest -UseBasicParsing -Uri "$RepoRawBase/plugins/$PluginName/assets/logo.svg" -OutFile (Join-Path $PluginDir 'assets\logo.svg')
-    Invoke-WebRequest -UseBasicParsing -Uri "$RepoRawBase/plugins/$PluginName/rules/AGENTS.md" -OutFile (Join-Path $PluginDir 'rules\AGENTS.md')
-}
+    New-Item -ItemType Directory -Force -Path $BinDir, (Join-Path $PluginDir 'assets'), (Join-Path $PluginDir 'rules') | Out-Null
 
-# 2. 下载并校验 SHA-256 安装 antigravity-hans.exe
-if (-not $UpdateEngine -and (Test-Path $HansExe)) {
-    Write-Host "[信息] 检测到已安装的汉化引擎，直接复用: $HansExe"
-} else {
-    $TmpDir = Join-Path ([System.IO.Path]::GetTempPath()) ("agy-zh-" + [System.Guid]::NewGuid().ToString('N'))
-    New-Item -ItemType Directory -Force -Path $TmpDir | Out-Null
-    try {
-        $AssetName = 'antigravity-hans-windows-amd64.exe'
-        $TmpExe = Join-Path $TmpDir $AssetName
-        $TmpSums = Join-Path $TmpDir 'SHA256SUMS'
+    # 1. Deploy antigravity-zh-prompt plugin (local repo if present, otherwise fetch from GitHub)
+    $LocalRepoRoot = if ($PSScriptRoot) { $PSScriptRoot } else { '' }
+    $IsLocalRepo = ($LocalRepoRoot -ne '') -and (Test-Path (Join-Path $LocalRepoRoot "plugins\$PluginName\plugin.json"))
 
-        Write-Host "[信息] 正在下载汉化引擎 ($AssetName) 并验证 SHA-256..."
-        Invoke-WebRequest -UseBasicParsing -Uri "$HansReleaseBase/$AssetName" -OutFile $TmpExe
-        Invoke-WebRequest -UseBasicParsing -Uri "$HansReleaseBase/SHA256SUMS" -OutFile $TmpSums
+    if ($IsLocalRepo) {
+        Write-Host "$TagInfo $(Resolve-ZhText '\u4f7f\u7528\u672c\u5730\u4ed3\u5e93\u6e90\u6587\u4ef6\u5b89\u88c5\u63d0\u793a\u8bcd\u63d2\u4ef6:') $LocalRepoRoot"
+        Copy-Item -Force (Join-Path $LocalRepoRoot "plugins\$PluginName\plugin.json") (Join-Path $PluginDir 'plugin.json')
+        Copy-Item -Force (Join-Path $LocalRepoRoot "plugins\$PluginName\assets\logo.svg") (Join-Path $PluginDir 'assets\logo.svg')
+        Copy-Item -Force (Join-Path $LocalRepoRoot "plugins\$PluginName\rules\AGENTS.md") (Join-Path $PluginDir 'rules\AGENTS.md')
+    } else {
+        Write-Host "$TagInfo $(Resolve-ZhText '\u6b63\u5728\u4ece GitHub \u4e0b\u8f7d\u5168\u6d41\u7a0b\u4e2d\u6587\u601d\u8003\u63d0\u793a\u8bcd\u63d2\u4ef6...')"
+        Invoke-WebRequest -UseBasicParsing -Uri "$RepoRawBase/plugins/$PluginName/plugin.json" -OutFile (Join-Path $PluginDir 'plugin.json')
+        Invoke-WebRequest -UseBasicParsing -Uri "$RepoRawBase/plugins/$PluginName/assets/logo.svg" -OutFile (Join-Path $PluginDir 'assets\logo.svg')
+        Invoke-WebRequest -UseBasicParsing -Uri "$RepoRawBase/plugins/$PluginName/rules/AGENTS.md" -OutFile (Join-Path $PluginDir 'rules\AGENTS.md')
+    }
 
-        $MatchedLine = Get-Content -Path $TmpSums | Where-Object { $_ -match "\s+$([regex]::Escape($AssetName))$" } | Select-Object -First 1
-        if (-not $MatchedLine) {
-            throw "在官方 SHA256SUMS 中未找到 $AssetName 的校验和。"
-        }
-        $ExpectedHash = ($MatchedLine.Trim() -split '\s+')[0].ToLowerInvariant()
-        $ActualHash = (Get-FileHash -Algorithm SHA256 -Path $TmpExe).Hash.ToLowerInvariant()
-        if ($ActualHash -ne $ExpectedHash) {
-            throw "SHA-256 校验失败！预期 $ExpectedHash，实际 $ActualHash"
-        }
+    # 2. Download & SHA-256 verify antigravity-hans.exe
+    if (-not $UpdateEngine -and (Test-Path $HansExe)) {
+        Write-Host "$TagInfo $(Resolve-ZhText '\u68c0\u6d4b\u5230\u5df2\u5b89\u88c5\u7684\u6c49\u5316\u5f15\u64ce\uff0c\u76f4\u63a5\u590d\u7528:') $HansExe"
+    } else {
+        $TmpDir = Join-Path ([System.IO.Path]::GetTempPath()) ('agy-zh-' + [System.Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Force -Path $TmpDir | Out-Null
+        try {
+            $AssetName = 'antigravity-hans-windows-amd64.exe'
+            $TmpExe = Join-Path $TmpDir $AssetName
+            $TmpSums = Join-Path $TmpDir 'SHA256SUMS'
 
-        Move-Item -Force $TmpExe $HansExe
-        Write-Host "[成功] 汉化引擎已安装并通过 SHA-256 校验: $HansExe"
-    } finally {
-        if (Test-Path $TmpDir) {
-            Remove-Item -Recurse -Force $TmpDir
+            Write-Host "$TagInfo $(Resolve-ZhText '\u6b63\u5728\u4e0b\u8f7d\u6c49\u5316\u5f15\u64ce\u5e76\u9a8c\u8bc1 SHA-256:') $AssetName"
+            Invoke-WebRequest -UseBasicParsing -Uri "$HansReleaseBase/$AssetName" -OutFile $TmpExe
+            Invoke-WebRequest -UseBasicParsing -Uri "$HansReleaseBase/SHA256SUMS" -OutFile $TmpSums
+
+            $MatchedLine = Get-Content -Path $TmpSums | Where-Object { $_ -match "\s+$([regex]::Escape($AssetName))$" } | Select-Object -First 1
+            if (-not $MatchedLine) {
+                throw (Resolve-ZhText '\u5728\u5b98\u65b9 SHA256SUMS \u4e2d\u672a\u627e\u5230\u5bf9\u5e94\u6821\u9a8c\u548c\u3002')
+            }
+            $ExpectedHash = ($MatchedLine.Trim() -split '\s+')[0].ToLowerInvariant()
+            $ActualHash = (Get-FileHash -Algorithm SHA256 -Path $TmpExe).Hash.ToLowerInvariant()
+            if ($ActualHash -ne $ExpectedHash) {
+                throw "$(Resolve-ZhText 'SHA-256 \u6821\u9a8c\u5931\u8d25\uff01') expected=$ExpectedHash actual=$ActualHash"
+            }
+
+            Move-Item -Force $TmpExe $HansExe
+            Write-Host "$TagOk $(Resolve-ZhText '\u6c49\u5316\u5f15\u64ce\u5df2\u5b89\u88c5\u5e76\u901a\u8fc7 SHA-256 \u6821\u9a8c:') $HansExe"
+        } finally {
+            if (Test-Path $TmpDir) {
+                Remove-Item -Recurse -Force $TmpDir
+            }
         }
     }
-}
 
-# 3. 写入 Windows 编排脚本 agy-zh.ps1 与命令行封装 agy-zh.cmd
-$AgyZhScript = @'
+    # 3. Write pure-ASCII orchestrator agy-zh.ps1 and agy-zh.cmd
+    $AgyZhScript = @'
 param(
     [Parameter(Position = 0)]
     [string]$SubCommand = 'start',
@@ -81,6 +91,15 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+try { [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false) } catch {}
+
+function Resolve-ZhText {
+    param([string]$Text)
+    return [regex]::Unescape($Text)
+}
+
+$TagOk = Resolve-ZhText '[\u6210\u529f]'
+$ShortcutName = Resolve-ZhText 'Antigravity \u4e2d\u6587.lnk'
 $PluginName = 'antigravity-zh-prompt'
 $ConfigDir = if ($env:GEMINI_CONFIG_DIR) { $env:GEMINI_CONFIG_DIR } else { Join-Path $env:USERPROFILE '.gemini\config' }
 $ConfigFile = Join-Path $ConfigDir 'config.json'
@@ -157,27 +176,37 @@ function Find-OriginalExe {
 }
 
 function New-ZhShortcut {
-    $desktop = [Environment]::GetFolderPath('Desktop')
-    $lnkPath = Join-Path $desktop 'Antigravity 中文.lnk'
+    $targets = @(
+        ([Environment]::GetFolderPath('Desktop')),
+        ([Environment]::GetFolderPath('Programs'))
+    )
     $wsh = New-Object -ComObject WScript.Shell
-    $sc = $wsh.CreateShortcut($lnkPath)
-    $sc.TargetPath = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
     $selfScript = Join-Path $PSScriptRoot 'agy-zh.ps1'
-    $sc.Arguments = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$selfScript`" start --nogui"
-    $sc.WorkingDirectory = $PSScriptRoot
     $origExe = Find-OriginalExe
-    if ($origExe) {
-        $sc.IconLocation = "$origExe,0"
+    $desc = Resolve-ZhText '\u4ee5\u4e2d\u6587\u754c\u9762\u4e0e\u5168\u6d41\u7a0b\u4e2d\u6587\u601d\u8003\u63d0\u793a\u8bcd\u542f\u52a8 Antigravity'
+    $psExePath = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+
+    foreach ($dir in $targets) {
+        if ([string]::IsNullOrWhiteSpace($dir)) { continue }
+        New-Item -ItemType Directory -Force -Path $dir | Out-Null
+        $lnkPath = Join-Path $dir $ShortcutName
+        $sc = $wsh.CreateShortcut($lnkPath)
+        $sc.TargetPath = $psExePath
+        $sc.Arguments = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$selfScript`" start --nogui"
+        $sc.WorkingDirectory = $PSScriptRoot
+        if ($origExe) {
+            $sc.IconLocation = "$origExe,0"
+        }
+        $sc.Description = $desc
+        $sc.Save()
+        Write-Host "$TagOk $(Resolve-ZhText '\u5df2\u521b\u5efa\u300cAntigravity \u4e2d\u6587\u300d\u5feb\u6377\u65b9\u5f0f:') $lnkPath"
     }
-    $sc.Description = '以中文界面与全流程中文思考提示词启动 Antigravity'
-    $sc.Save()
-    Write-Host "[成功] 已创建桌面中文快捷方式: $lnkPath"
 }
 
 switch ($SubCommand.ToLowerInvariant()) {
     'start' {
         if (-not (Test-Path $HansExe)) {
-            throw "未找到 antigravity-hans.exe ($HansExe)，请重新运行 install.ps1。"
+            throw "$(Resolve-ZhText '\u672a\u627e\u5230 antigravity-hans.exe\uff0c\u8bf7\u91cd\u65b0\u8fd0\u884c install.ps1\u3002') ($HansExe)"
         }
         if (Test-Path (Join-Path $PluginDir 'plugin.json')) {
             Set-ZhPluginEnabled -Enabled $true
@@ -201,25 +230,29 @@ switch ($SubCommand.ToLowerInvariant()) {
             & $HansExe --stop --app 2>$null | Out-Null
         }
         Set-ZhPluginEnabled -Enabled $false
-        Write-Host "[成功] 已停止中文汉化监视器，并关闭 $PluginName 插件。"
+        Write-Host "$TagOk $(Resolve-ZhText '\u5df2\u505c\u6b62\u4e2d\u6587\u6c49\u5316\u76d1\u89c6\u5668\uff0c\u5e76\u5173\u95ed\u4e2d\u6587\u601d\u8003\u63d0\u793a\u8bcd\u63d2\u4ef6\u3002')"
     }
     'prompt' {
         $act = if ($RestArgs.Count -gt 0) { $RestArgs[0].ToLowerInvariant() } else { 'status' }
         switch ($act) {
             'on' {
                 Set-ZhPluginEnabled -Enabled $true
-                Write-Host "[成功] 已开启中文思考提示词插件 ($PluginName)。"
+                Write-Host "$TagOk $(Resolve-ZhText '\u5df2\u5f00\u542f\u4e2d\u6587\u601d\u8003\u63d0\u793a\u8bcd\u63d2\u4ef6 (antigravity-zh-prompt)\u3002')"
             }
             'off' {
                 Set-ZhPluginEnabled -Enabled $false
-                Write-Host "[成功] 已关闭中文思考提示词插件 ($PluginName)。"
+                Write-Host "$TagOk $(Resolve-ZhText '\u5df2\u5173\u95ed\u4e2d\u6587\u601d\u8003\u63d0\u793a\u8bcd\u63d2\u4ef6 (antigravity-zh-prompt)\u3002')"
             }
             'status' {
                 $st = Get-ZhPluginEnabled
-                Write-Host "提示词插件 ($PluginName): $(if ($st) { '已开启 (enabled: true)' } else { '已关闭 (enabled: false)' })"
+                if ($st) {
+                    Write-Host (Resolve-ZhText '\u63d0\u793a\u8bcd\u63d2\u4ef6 (antigravity-zh-prompt): \u5df2\u5f00\u542f (enabled: true)')
+                } else {
+                    Write-Host (Resolve-ZhText '\u63d0\u793a\u8bcd\u63d2\u4ef6 (antigravity-zh-prompt): \u5df2\u5173\u95ed (enabled: false)')
+                }
             }
             default {
-                throw '用法: agy-zh prompt <on|off|status>'
+                throw (Resolve-ZhText '\u7528\u6cd5: agy-zh prompt <on|off|status>')
             }
         }
     }
@@ -230,35 +263,62 @@ switch ($SubCommand.ToLowerInvariant()) {
         $orig = Find-OriginalExe
         $st = Get-ZhPluginEnabled
         $active = Test-ActiveHansMonitor
-        $lnk = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Antigravity 中文.lnk'
-        Write-Host '=== Antigravity 双入口汉化状态 ==='
-        Write-Host "原版入口 (纯净英文): $(if ($orig) { $orig } else { '未检测到 Antigravity.exe' })"
-        Write-Host "中文入口 (双效联动): $(if (Test-Path $lnk) { $lnk } else { '未创建' })"
-        Write-Host "动态汉化引擎 (CDP) : $(if (Test-Path $HansExe) { $HansExe } else { '未安装' })"
-        Write-Host "中文思考提示词插件 : $(if (Test-Path (Join-Path $PluginDir 'plugin.json')) { "已安装 ($PluginDir)" } else { '未安装' })"
-        Write-Host "提示词当前开关状态 : $(if ($st) { '已开启 (enabled: true)' } else { '已关闭 (enabled: false，原版入口纯净)' })"
-        Write-Host "后台汉化监视器进程 : $(if ($active) { '运行中' } else { '未运行' })"
+        $desktopLnk = Join-Path ([Environment]::GetFolderPath('Desktop')) $ShortcutName
+        $programsLnk = Join-Path ([Environment]::GetFolderPath('Programs')) $ShortcutName
+        $lnkList = @()
+        if (Test-Path $desktopLnk) { $lnkList += $desktopLnk }
+        if (Test-Path $programsLnk) { $lnkList += $programsLnk }
+
+        Write-Host (Resolve-ZhText '=== Antigravity \u53cc\u5165\u53e3\u6c49\u5316\u72b6\u6001 ===')
+        Write-Host "$(Resolve-ZhText '\u539f\u7248\u5165\u53e3 (\u7eaf\u51c0\u82f1\u6587): ') $(if ($orig) { $orig } else { Resolve-ZhText '\u672a\u68c0\u6d4b\u5230 Antigravity.exe' })"
+        Write-Host "$(Resolve-ZhText '\u4e2d\u6587\u5165\u53e3 (\u53cc\u6548\u8054\u52a8): ') $(if ($lnkList.Count -gt 0) { $lnkList -join '; ' } else { Resolve-ZhText '\u672a\u521b\u5efa\uff08\u53ef\u8fd0\u884c agy-zh shortcut \u751f\u6210\uff09' })"
+        Write-Host "$(Resolve-ZhText '\u52a8\u6001\u6c49\u5316\u5f15\u64ce (CDP) : ') $(if (Test-Path $HansExe) { $HansExe } else { Resolve-ZhText '\u672a\u5b89\u88c5' })"
+        Write-Host "$(Resolve-ZhText '\u4e2d\u6587\u601d\u8003\u63d0\u793a\u8bcd\u63d2\u4ef6 : ') $(if (Test-Path (Join-Path $PluginDir 'plugin.json')) { "$(Resolve-ZhText '\u5df2\u5b89\u88c5 ')($PluginDir)" } else { Resolve-ZhText '\u672a\u5b89\u88c5' })"
+        Write-Host "$(Resolve-ZhText '\u63d0\u793a\u8bcd\u5f53\u524d\u5f00\u5173\u72b6\u6001 : ') $(if ($st) { Resolve-ZhText '\u5df2\u5f00\u542f (enabled: true)' } else { Resolve-ZhText '\u5df2\u5173\u95ed (enabled: false\uff0c\u539f\u7248\u5165\u53e3\u7eaf\u51c0)' })"
+        Write-Host "$(Resolve-ZhText '\u540e\u53f0\u6c49\u5316\u76d1\u89c6\u5668\u8fdb\u7a0b : ') $(if ($active) { Resolve-ZhText '\u8fd0\u884c\u4e2d' } else { Resolve-ZhText '\u672a\u8fd0\u884c' })"
     }
     default {
-        Write-Host 'agy-zh - Antigravity 双入口无损汉化与中文思考提示词联动启动器 (Windows)'
-        Write-Host '用法: agy-zh <start|stop|status|prompt <on|off|status>|shortcut>'
+        Write-Host (Resolve-ZhText 'agy-zh - Antigravity \u53cc\u5165\u53e3\u65e0\u635f\u6c49\u5316\u4e0e\u4e2d\u6587\u601d\u8003\u63d0\u793a\u8bcd\u8054\u52a8\u542f\u52a8\u5668 (Windows)')
+        Write-Host (Resolve-ZhText '\u7528\u6cd5: agy-zh <start|stop|status|prompt <on|off|status>|shortcut>')
     }
 }
 '@
 
-[System.IO.File]::WriteAllText($AgyZhPs1, $AgyZhScript + "`r`n", [System.Text.UTF8Encoding]::new($false))
-$CmdContent = "@echo off`r`npowershell.exe -NoProfile -ExecutionPolicy Bypass -File `"%~dp0agy-zh.ps1`" %*`r`n"
-[System.IO.File]::WriteAllText($AgyZhCmd, $CmdContent, [System.Text.UTF8Encoding]::new($false))
+    [System.IO.File]::WriteAllText($AgyZhPs1, $AgyZhScript + "`r`n", [System.Text.UTF8Encoding]::new($false))
+    $CmdContent = "@echo off`r`n`"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe`" -NoProfile -ExecutionPolicy Bypass -File `"%~dp0agy-zh.ps1`" %*`r`n"
+    [System.IO.File]::WriteAllText($AgyZhCmd, $CmdContent, [System.Text.UTF8Encoding]::new($false))
 
-# 确保安装后默认关闭插件，保持原版入口纯净
-& $AgyZhPs1 prompt off | Out-Null
+    # 4. Add BinDir to User Path if missing
+    $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+    $segments = @()
+    if ($userPath) {
+        $segments = @($userPath -split ';' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    }
+    $normalizedBin = $BinDir.TrimEnd('\')
+    $hasBin = $false
+    foreach ($seg in $segments) {
+        if ($seg.Trim().TrimEnd('\').Equals($normalizedBin, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $hasBin = $true
+            break
+        }
+    }
+    if (-not $hasBin) {
+        $newUserPath = (($segments + $BinDir) -join ';')
+        [Environment]::SetEnvironmentVariable('Path', $newUserPath, 'User')
+        if ($env:Path) { $env:Path = "$env:Path;$BinDir" } else { $env:Path = $BinDir }
+        Write-Host "$TagOk $(Resolve-ZhText '\u5df2\u5c06\u547d\u4ee4\u884c\u76ee\u5f55\u52a0\u5165\u7528\u6237 Path:') $BinDir"
+    }
 
-if (-not $NoShortcut) {
-    & $AgyZhPs1 shortcut
+    # 5. Keep plugin disabled by default (stock entry stays clean)
+    & $PsExe -NoProfile -ExecutionPolicy Bypass -File $AgyZhPs1 prompt off | Out-Null
+
+    if (-not $NoShortcut) {
+        & $PsExe -NoProfile -ExecutionPolicy Bypass -File $AgyZhPs1 shortcut
+    }
+
+    Write-Host ''
+    Write-Host (Resolve-ZhText '\u5b89\u88c5\u5b8c\u6210\uff01')
+    Write-Host (Resolve-ZhText '  \u2022 \u539f\u59cb\u82f1\u6587\u5165\u53e3\uff1a\u7167\u5e38\u6253\u5f00\u539f\u7248 Antigravity\uff08\u4fdd\u6301\u539f\u5382\u82f1\u6587 UI \u4e0e\u539f\u59cb\u63d0\u793a\u8bcd\uff09')
+    Write-Host (Resolve-ZhText '  \u2022 \u72ec\u7acb\u4e2d\u6587\u5165\u53e3\uff1a\u53cc\u51fb\u684c\u9762\u6216\u5f00\u59cb\u83dc\u5355\u4e2d\u7684\u300cAntigravity \u4e2d\u6587\u300d\u5feb\u6377\u65b9\u5f0f')
+    Write-Host "  $(Resolve-ZhText '\u2022 \u547d\u4ee4\u884c\u7ba1\u7406  \uff1a\u5728\u7ec8\u7aef\u8fd0\u884c agy-zh status \u6216\u4f7f\u7528:') $AgyZhCmd"
 }
-
-Write-Host ''
-Write-Host '安装完成！'
-Write-Host '  • 原始英文入口：正常打开原版 Antigravity（保持原厂英文 UI 与原始提示词）'
-Write-Host '  • 独立中文入口：双击桌面「Antigravity 中文」快捷方式'
-Write-Host "  • CLI 管理入口：$AgyZhCmd status"
