@@ -62,3 +62,4 @@ irm https://raw.githubusercontent.com/guuguo/antigravity-zh-launcher/main/uninst
 ## Credits & License
 
 - UI localization powered by [yuexps/Antigravity-Hans](https://github.com/yuexps/Antigravity-Hans) · Released under the [MIT License](LICENSE)
+- Shout-out to the [LINUX DO](https://linux.do/) community for feedback and support

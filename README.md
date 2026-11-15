@@ -62,3 +62,4 @@ irm https://raw.githubusercontent.com/guuguo/antigravity-zh-launcher/main/uninst
 ## 致谢与许可
 
 - 界面汉化能力由 [yuexps/Antigravity-Hans](https://github.com/yuexps/Antigravity-Hans) 提供 · 基于 [MIT License](LICENSE) 开源
+- 感谢 [LINUX DO](https://linux.do/) 社区佬友们的交流与反馈
