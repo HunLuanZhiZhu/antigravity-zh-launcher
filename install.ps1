@@ -117,7 +117,7 @@ function Resolve-ZhText {
 
 $TagOk   = Resolve-ZhText '[\u6210\u529f]'
 $TagWarn = Resolve-ZhText '[\u63d0\u793a]'
-$OverlayVersion = 'agy-zh-v3'
+$OverlayVersion = 'agy-zh-v4'
 $ShortcutName = Resolve-ZhText 'Antigravity \u4e2d\u6587.lnk'
 $LaunchVbsB64 = '__LAUNCH_VBS_B64__'
 $PluginName = 'antigravity-zh-prompt'
@@ -247,7 +247,32 @@ function Ensure-EnhancedOverlay {
         '    ["Ask anything, @ to mention", "\u60f3\u95ee\u4ec0\u4e48\u90fd\u53ef\u4ee5\uff0c@ \u5f15\u7528"],',
         '    ["Message subagent, @ to mention, / for actions", "\u5411\u5b50\u667a\u80fd\u4f53\u53d1\u6d88\u606f\uff0c@ \u5f15\u7528\uff0c/ \u6267\u884c\u52a8\u4f5c"],',
         '    ["Message subagent, @ to mention", "\u5411\u5b50\u667a\u80fd\u4f53\u53d1\u6d88\u606f\uff0c@ \u5f15\u7528"],',
-        '    ["Listening. Ask anything.", "\u6b63\u5728\u8046\u542c\uff0c\u60f3\u95ee\u4ec0\u4e48\u90fd\u53ef\u4ee5\u3002"],'
+        '    ["Listening. Ask anything.", "\u6b63\u5728\u8046\u542c\uff0c\u60f3\u95ee\u4ec0\u4e48\u90fd\u53ef\u4ee5\u3002"],',
+        '    ["Analyzed", "\u5df2\u5206\u6790"],',
+        '    ["Analyzing", "\u6b63\u5728\u5206\u6790"],',
+        '    ["Editing", "\u6b63\u5728\u7f16\u8f91"],',
+        '    ["Creating", "\u6b63\u5728\u521b\u5efa"],',
+        '    ["Created", "\u5df2\u521b\u5efa"],',
+        '    ["Updating", "\u6b63\u5728\u66f4\u65b0"],',
+        '    ["Updated", "\u5df2\u66f4\u65b0"],',
+        '    ["Deleting", "\u6b63\u5728\u5220\u9664"],',
+        '    ["Reading", "\u6b63\u5728\u8bfb\u53d6"],',
+        '    ["Writing", "\u6b63\u5728\u5199\u5165"],',
+        '    ["Wrote", "\u5df2\u5199\u5165"],',
+        '    ["Listing", "\u6b63\u5728\u5217\u51fa"],',
+        '    ["Listed", "\u5df2\u5217\u51fa"],',
+        '    ["Checking", "\u6b63\u5728\u68c0\u67e5"],',
+        '    ["Checked", "\u5df2\u68c0\u67e5"],',
+        '    ["Viewing", "\u6b63\u5728\u67e5\u770b"],',
+        '    ["Viewed", "\u5df2\u67e5\u770b"],',
+        '    ["Exploring", "\u6b63\u5728\u63a2\u7d22"],',
+        '    ["Invoking", "\u6b63\u5728\u8c03\u7528"],',
+        '    ["Invoked", "\u5df2\u8c03\u7528"],',
+        '    ["Started", "\u5df2\u5f00\u59cb"],',
+        '    ["Starting", "\u6b63\u5728\u542f\u52a8"],',
+        '    ["Task Log", "\u4efb\u52a1\u65e5\u5fd7"],',
+        '    ["Finished", "\u5df2\u5b8c\u6210"],',
+        '    ["finished", "\u5df2\u5b8c\u6210"],'
     ) -join "`n"
     $js = Replace-Once -Text $js -Target '  const phrases = new Map([' -Replacement $phrasesAddon -Label 'phrases'
 
@@ -260,7 +285,20 @@ function Ensure-EnhancedOverlay {
         '    [/^(\d+)\s*w\s+ago$/i, ''$1\u5468\u524d''],',
         '    [/^(\d+)\s*mo\s+ago$/i, ''$1\u4e2a\u6708\u524d''],',
         '    [/^(\d+)\s*y\s+ago$/i, ''$1\u5e74\u524d''],',
-        '    [/^(?:Just now|now)$/i, ''\u521a\u521a''],'
+        '    [/^(?:Just now|now)$/i, ''\u521a\u521a''],',
+        '    [/^(Analyzed|Analyzing|Editing|Edited|Creating|Created|Updating|Updated|Deleting|Deleted|Reading|Writing|Wrote|Listing|Listed|Checking|Checked|Viewing|Viewed)\s+(Task\s+Logs?|[^\r\n]+?(?:\.[A-Za-z0-9]{1,8}(?:\s+#L\d+(?:-\d+)?)?|\s+#L\d+(?:-\d+)?)|[^\s\r\n]+)$/i, (_m, verb, target) => {',
+        '      const verbMap = {',
+        '        analyzed: ''\u5df2\u5206\u6790'', analyzing: ''\u6b63\u5728\u5206\u6790'', editing: ''\u6b63\u5728\u7f16\u8f91'', edited: ''\u5df2\u7f16\u8f91'',',
+        '        creating: ''\u6b63\u5728\u521b\u5efa'', created: ''\u5df2\u521b\u5efa'', updating: ''\u6b63\u5728\u66f4\u65b0'', updated: ''\u5df2\u66f4\u65b0'',',
+        '        deleting: ''\u6b63\u5728\u5220\u9664'', deleted: ''\u5df2\u5220\u9664'', reading: ''\u6b63\u5728\u8bfb\u53d6'', writing: ''\u6b63\u5728\u5199\u5165'',',
+        '        wrote: ''\u5df2\u5199\u5165'', listing: ''\u6b63\u5728\u5217\u51fa'', listed: ''\u5df2\u5217\u51fa'', checking: ''\u6b63\u5728\u68c0\u67e5'',',
+        '        checked: ''\u5df2\u68c0\u67e5'', viewing: ''\u6b63\u5728\u67e5\u770b'', viewed: ''\u5df2\u67e5\u770b'',',
+        '      };',
+        '      const zhVerb = verbMap[verb.toLowerCase()] || verb;',
+        '      const zhTarget = /^Task\s+Logs?$/i.test(target) ? ''\u4efb\u52a1\u65e5\u5fd7'' : target;',
+        '      return `${zhVerb} ${zhTarget}`;',
+        '    }],',
+        '    [/^([\s\S]{3,}?)(?<!\b(?:as|is|are|was|were|be|been|not|never|when|until|before|after|get|got|almost|completely|nearly|just|already))\s+finished$/i, ''$1 \u5df2\u5b8c\u6210''],'
     ) -join "`n")
     $js = Replace-Once -Text $js -Target '  const dynamicPatterns = [' -Replacement $dynAddon -Label 'dynamicPatterns_time'
 

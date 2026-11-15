@@ -11,7 +11,7 @@ CONFIG_FILE="$CONFIG_DIR/config.json"
 PLUGIN_DIR="$CONFIG_DIR/plugins/$PLUGIN_NAME"
 LOG_DIR="$HOME/Library/Logs"
 LOG_FILE="$LOG_DIR/antigravity-hans.log"
-OVERLAY_VERSION="agy-zh-v3"
+OVERLAY_VERSION="agy-zh-v4"
 
 resolve_self_path() {
   local src="${BASH_SOURCE[0]}"
@@ -237,17 +237,42 @@ def replace_once(text, target, replacement, label):
     return text.replace(target, replacement, 1)
 
 
-# 1. 补全输入框提示语及常见变体词条
+# 1. 补全输入框提示语、运行链路动作词及常见变体词条
 phrases_anchor = "  const phrases = new Map(["
 phrases_addon = """  const phrases = new Map([
     ["Ask anything, @ to mention, / for actions", "想问什么都可以，@ 引用，/ 执行动作"],
     ["Ask anything, @ to mention", "想问什么都可以，@ 引用"],
     ["Message subagent, @ to mention, / for actions", "向子智能体发消息，@ 引用，/ 执行动作"],
     ["Message subagent, @ to mention", "向子智能体发消息，@ 引用"],
-    ["Listening. Ask anything.", "正在聆听，想问什么都可以。"],"""
+    ["Listening. Ask anything.", "正在聆听，想问什么都可以。"],
+    ["Analyzed", "已分析"],
+    ["Analyzing", "正在分析"],
+    ["Editing", "正在编辑"],
+    ["Creating", "正在创建"],
+    ["Created", "已创建"],
+    ["Updating", "正在更新"],
+    ["Updated", "已更新"],
+    ["Deleting", "正在删除"],
+    ["Reading", "正在读取"],
+    ["Writing", "正在写入"],
+    ["Wrote", "已写入"],
+    ["Listing", "正在列出"],
+    ["Listed", "已列出"],
+    ["Checking", "正在检查"],
+    ["Checked", "已检查"],
+    ["Viewing", "正在查看"],
+    ["Viewed", "已查看"],
+    ["Exploring", "正在探索"],
+    ["Invoking", "正在调用"],
+    ["Invoked", "已调用"],
+    ["Started", "已开始"],
+    ["Starting", "正在启动"],
+    ["Task Log", "任务日志"],
+    ["Finished", "已完成"],
+    ["finished", "已完成"],"""
 js = replace_once(js, phrases_anchor, phrases_addon, "phrases")
 
-# 2. 补充简短相对时间匹配（8m ago / 1w ago / 3mo ago / just now 等紧凑格式）
+# 2. 补充简短相对时间及单节点工具步骤行规则（8m ago / Editing foo.js / ... finished）
 dyn_anchor = "  const dynamicPatterns = ["
 dyn_addon = """  const dynamicPatterns = [
     [/^(\\d+)\\s*s\\s+ago$/i, '$1秒前'],
@@ -257,7 +282,20 @@ dyn_addon = """  const dynamicPatterns = [
     [/^(\\d+)\\s*w\\s+ago$/i, '$1周前'],
     [/^(\\d+)\\s*mo\\s+ago$/i, '$1个月前'],
     [/^(\\d+)\\s*y\\s+ago$/i, '$1年前'],
-    [/^(?:Just now|now)$/i, '刚刚'],"""
+    [/^(?:Just now|now)$/i, '刚刚'],
+    [/^(Analyzed|Analyzing|Editing|Edited|Creating|Created|Updating|Updated|Deleting|Deleted|Reading|Writing|Wrote|Listing|Listed|Checking|Checked|Viewing|Viewed)\\s+(Task\\s+Logs?|[^\\r\\n]+?(?:\\.[A-Za-z0-9]{1,8}(?:\\s+#L\\d+(?:-\\d+)?)?|\\s+#L\\d+(?:-\\d+)?)|[^\\s\\r\\n]+)$/i, (_m, verb, target) => {
+      const verbMap = {
+        analyzed: '已分析', analyzing: '正在分析', editing: '正在编辑', edited: '已编辑',
+        creating: '正在创建', created: '已创建', updating: '正在更新', updated: '已更新',
+        deleting: '正在删除', deleted: '已删除', reading: '正在读取', writing: '正在写入',
+        wrote: '已写入', listing: '正在列出', listed: '已列出', checking: '正在检查',
+        checked: '已检查', viewing: '正在查看', viewed: '已查看',
+      };
+      const zhVerb = verbMap[verb.toLowerCase()] || verb;
+      const zhTarget = /^Task\\s+Logs?$/i.test(target) ? '任务日志' : target;
+      return `${zhVerb} ${zhTarget}`;
+    }],
+    [/^([\\s\\S]{3,}?)(?<!\\b(?:as|is|are|was|were|be|been|not|never|when|until|before|after|get|got|almost|completely|nearly|just|already))\\s+finished$/i, '$1 已完成'],"""
 js = replace_once(js, dyn_anchor, dyn_addon, "dynamicPatterns_time")
 
 # 2b. 对齐已有长英文相对时间规则为紧凑格式（8分钟前）
