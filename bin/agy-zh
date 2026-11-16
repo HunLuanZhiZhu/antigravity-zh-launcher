@@ -2,38 +2,27 @@
 set -euo pipefail
 
 # Antigravity 中文双入口编排器 (macOS)
-# 负责在“中文入口”启动期间启用中文思考提示词插件，并在退出后自动复原，
-# 从而与原版 Antigravity 入口完全隔离。
+# 自研零二进制本地 CDP 注入器 + 中文思考提示词插件联动控制。
+# 仅复用纯文本汉化词库脚本（antigravity-hans-overlay.js），退出中文入口后自动还原默认状态。
 
 PLUGIN_NAME="antigravity-zh-prompt"
 CONFIG_DIR="${GEMINI_CONFIG_DIR:-$HOME/.gemini/config}"
 CONFIG_FILE="$CONFIG_DIR/config.json"
 PLUGIN_DIR="$CONFIG_DIR/plugins/$PLUGIN_NAME"
+DATA_DIR="${AGY_ZH_DATA_DIR:-$HOME/.local/bin}"
+OVERLAY_URL="${AGY_ZH_OVERLAY_URL:-https://raw.githubusercontent.com/yuexps/Antigravity-Hans/main/antigravity-hans-overlay.js}"
+BASE_OVERLAY_FILE="$DATA_DIR/antigravity-hans-overlay.base.js"
+OVERLAY_FILE="$DATA_DIR/antigravity-hans-overlay.js"
 LOG_DIR="$HOME/Library/Logs"
-LOG_FILE="$LOG_DIR/antigravity-hans.log"
-OVERLAY_VERSION="agy-zh-v4"
+LOG_FILE="$LOG_DIR/agy-zh.log"
+PID_FILE="$LOG_DIR/agy-zh-cdp.pid"
+OVERLAY_VERSION="agy-zh-v5"
 
 resolve_self_path() {
   local src="${BASH_SOURCE[0]}"
   local dir
   dir="$(cd -P "$(dirname "$src")" && pwd)"
   printf '%s/%s\n' "$dir" "$(basename "$src")"
-}
-
-find_hans_bin() {
-  if [[ -n "${AGY_HANS_BIN:-}" && -x "${AGY_HANS_BIN:-}" ]]; then
-    printf '%s\n' "$AGY_HANS_BIN"
-    return 0
-  fi
-  if [[ -x "$HOME/.local/bin/antigravity-hans" ]]; then
-    printf '%s\n' "$HOME/.local/bin/antigravity-hans"
-    return 0
-  fi
-  if command -v antigravity-hans >/dev/null 2>&1; then
-    command -v antigravity-hans
-    return 0
-  fi
-  return 1
 }
 
 find_original_app() {
@@ -165,41 +154,97 @@ print("false")
 PY
 }
 
-list_active_hans_pids() {
-  ps -axo pid=,args= 2>/dev/null | awk '
-    $0 !~ /^[[:space:]]*[0-9]+[[:space:]]+awk/ {
-      cmd = $2
-      if (cmd ~ /(^|\/)antigravity-hans$/ && $0 ~ /(^|[[:space:]])--app([[:space:]]|$)/) {
-        print $1
-      }
-    }
-  '
+list_active_watcher_pids() {
+  python3 - "$PID_FILE" <<'PY'
+import os
+import subprocess
+import sys
+
+pid_file = sys.argv[1]
+found = set()
+
+if os.path.isfile(pid_file):
+    try:
+        with open(pid_file, "r", encoding="utf-8") as f:
+            pid = int(f.read().strip())
+        os.kill(pid, 0)
+        out = subprocess.check_output(["ps", "-p", str(pid), "-o", "args="], text=True, stderr=subprocess.DEVNULL)
+        if "AGY_ZH_WATCHER_MARKER" in out or "python" in out:
+            found.add(pid)
+    except Exception:
+        pass
+
+try:
+    out = subprocess.check_output(["ps", "-axo", "pid=,args="], text=True, stderr=subprocess.DEVNULL)
+    for line in out.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split(None, 1)
+        if len(parts) < 2:
+            continue
+        try:
+            pid = int(parts[0])
+        except ValueError:
+            continue
+        if pid == os.getpid():
+            continue
+        if "AGY_ZH_WATCHER_MARKER=1" in parts[1]:
+            found.add(pid)
+except Exception:
+    pass
+
+for pid in sorted(found):
+    print(pid)
+PY
 }
 
-has_active_hans_monitor() {
-  [[ -n "$(list_active_hans_pids)" ]]
+has_active_watcher() {
+  [[ -n "$(list_active_watcher_pids)" ]]
+}
+
+ensure_base_overlay() {
+  local refresh="${1:-false}"
+  mkdir -p "$DATA_DIR"
+  if [[ "$refresh" == "false" && -s "$BASE_OVERLAY_FILE" ]]; then
+    return 0
+  fi
+
+  local tmp_file
+  tmp_file="$(mktemp "$DATA_DIR/.antigravity-hans-overlay.base.XXXXXX")"
+
+  echo "[信息] 正在下载基础汉化词库脚本..."
+  if ! curl -fsSL --retry 2 --connect-timeout 15 "$OVERLAY_URL" -o "$tmp_file"; then
+    rm -f "$tmp_file"
+    return 1
+  fi
+  if ! grep -q "__antigravityZhPatchInstalled" "$tmp_file"; then
+    echo "[错误] 下载的基础汉化脚本校验失败（未检测到有效补丁标识）。" >&2
+    rm -f "$tmp_file"
+    return 1
+  fi
+  chmod 644 "$tmp_file"
+  mv -f "$tmp_file" "$BASE_OVERLAY_FILE"
 }
 
 ensure_enhanced_overlay() {
-  local hans_bin="$1"
-  local force="${2:-false}"
-  local overlay_path
-  overlay_path="$(dirname "$hans_bin")/antigravity-hans-overlay.js"
+  local force="${1:-false}"
+  ensure_base_overlay "$force"
 
-  python3 - "$hans_bin" "$overlay_path" "$OVERLAY_VERSION" "$force" <<'PY'
+  python3 - "$BASE_OVERLAY_FILE" "$OVERLAY_FILE" "$OVERLAY_VERSION" "$force" <<'PY'
 import hashlib
 import os
 import sys
 import tempfile
 
-hans_bin, overlay_path, overlay_ver, force_flag = sys.argv[1:5]
+base_path, overlay_path, overlay_ver, force_flag = sys.argv[1:5]
 force = force_flag == "true"
 
-with open(hans_bin, "rb") as f:
-    raw = f.read()
+with open(base_path, "r", encoding="utf-8") as f:
+    raw_js = f.read()
 
-bin_sha256 = hashlib.sha256(raw).hexdigest()[:16]
-header_comment = f"// antigravity-zh-launcher overlay: {overlay_ver}; engine_sha256={bin_sha256}"
+base_sha256 = hashlib.sha256(raw_js.encode("utf-8")).hexdigest()[:16]
+header_comment = f"// antigravity-zh-launcher overlay: {overlay_ver}; base_sha256={base_sha256}"
 
 if not force and os.path.isfile(overlay_path):
     try:
@@ -210,36 +255,24 @@ if not force and os.path.isfile(overlay_path):
     except Exception:
         pass
 
-start_marker = (
-    b"(() => {\n"
-    b"  if (typeof window === 'undefined') return;\n"
-    b"  const fingerprint = window.__antigravityZhPatchRequestedFingerprint"
-)
-start_idx = raw.find(start_marker)
-if start_idx == -1:
-    sys.stderr.write(f"[错误] 未能在 {hans_bin} 中定位内嵌汉化脚本起点。\n")
-    sys.exit(1)
+js = raw_js.replace("\r\n", "\n")
 
-end_marker = b"})();"
-end_idx = raw.find(end_marker, start_idx + len(start_marker))
-if end_idx == -1:
-    sys.stderr.write(f"[错误] 未能在 {hans_bin} 中定位内嵌汉化脚本终点。\n")
-    sys.exit(1)
 
-js = raw[start_idx : end_idx + len(end_marker)].decode("utf-8")
+class AnchorError(RuntimeError):
+    pass
 
 
 def replace_once(text, target, replacement, label):
     count = text.count(target)
     if count != 1:
-        sys.stderr.write(f"[错误] 增强补丁锚点匹配异常 ({label}): count={count}\n")
-        sys.exit(1)
+        raise AnchorError(f"锚点匹配异常 ({label}): count={count}")
     return text.replace(target, replacement, 1)
 
 
-# 1. 补全输入框提示语、运行链路动作词及常见变体词条
-phrases_anchor = "  const phrases = new Map(["
-phrases_addon = """  const phrases = new Map([
+try:
+    # 1. 补全输入框提示语、运行链路动作词及常见变体词条
+    phrases_anchor = "  const phrases = new Map(["
+    phrases_addon = """  const phrases = new Map([
     ["Ask anything, @ to mention, / for actions", "想问什么都可以，@ 引用，/ 执行动作"],
     ["Ask anything, @ to mention", "想问什么都可以，@ 引用"],
     ["Message subagent, @ to mention, / for actions", "向子智能体发消息，@ 引用，/ 执行动作"],
@@ -270,11 +303,11 @@ phrases_addon = """  const phrases = new Map([
     ["Task Log", "任务日志"],
     ["Finished", "已完成"],
     ["finished", "已完成"],"""
-js = replace_once(js, phrases_anchor, phrases_addon, "phrases")
+    js = replace_once(js, phrases_anchor, phrases_addon, "phrases")
 
-# 2. 补充简短相对时间及单节点工具步骤行规则（8m ago / Editing foo.js / ... finished）
-dyn_anchor = "  const dynamicPatterns = ["
-dyn_addon = """  const dynamicPatterns = [
+    # 2. 补充简短相对时间及单节点工具步骤行规则（8m ago / Editing foo.js / ... finished）
+    dyn_anchor = "  const dynamicPatterns = ["
+    dyn_addon = """  const dynamicPatterns = [
     [/^(\\d+)\\s*s\\s+ago$/i, '$1秒前'],
     [/^(\\d+)\\s*m\\s+ago$/i, '$1分钟前'],
     [/^(\\d+)\\s*h\\s+ago$/i, '$1小时前'],
@@ -296,28 +329,28 @@ dyn_addon = """  const dynamicPatterns = [
       return `${zhVerb} ${zhTarget}`;
     }],
     [/^([\\s\\S]{3,}?)(?<!\\b(?:as|is|are|was|were|be|been|not|never|when|until|before|after|get|got|almost|completely|nearly|just|already))\\s+finished$/i, '$1 已完成'],"""
-js = replace_once(js, dyn_anchor, dyn_addon, "dynamicPatterns_time")
+    js = replace_once(js, dyn_anchor, dyn_addon, "dynamicPatterns_time")
 
-# 2b. 对齐已有长英文相对时间规则为紧凑格式（8分钟前）
-ago_anchor = """    [/(\\d+)\\s*minutes?\\s*ago\\b/gi, '$1 分钟前'],
+    # 2b. 对齐已有长英文相对时间规则为紧凑格式（8分钟前）
+    ago_anchor = """    [/(\\d+)\\s*minutes?\\s*ago\\b/gi, '$1 分钟前'],
     [/(\\d+)\\s*hours?\\s*ago\\b/gi, '$1 小时前'],
     [/(\\d+)\\s*days?\\s*ago\\b/gi, '$1 天前'],
     [/(\\d+)\\s*weeks?\\s*ago\\b/gi, '$1 周前'],
     [/(\\d+)\\s*months?\\s*ago\\b/gi, '$1 个月前'],
     [/(\\d+)\\s*years?\\s*ago\\b/gi, '$1 年前'],"""
-ago_compact = """    [/(\\d+)\\s*minutes?\\s*ago\\b/gi, '$1分钟前'],
+    ago_compact = """    [/(\\d+)\\s*minutes?\\s*ago\\b/gi, '$1分钟前'],
     [/(\\d+)\\s*hours?\\s*ago\\b/gi, '$1小时前'],
     [/(\\d+)\\s*days?\\s*ago\\b/gi, '$1天前'],
     [/(\\d+)\\s*weeks?\\s*ago\\b/gi, '$1周前'],
     [/(\\d+)\\s*months?\\s*ago\\b/gi, '$1个月前'],
     [/(\\d+)\\s*years?\\s*ago\\b/gi, '$1年前'],"""
-js = replace_once(js, ago_anchor, ago_compact, "existing_ago")
+    js = replace_once(js, ago_anchor, ago_compact, "existing_ago")
 
-# 2c. 扩展首页全量 6 种轮换动态欢迎语（Hey guo, what should we build today? 等）
-greeting_anchor = """    const greeting = trimmed.match(/^Hi ([\\s\\S]+?), what can we get done today\\?$/);
+    # 2c. 扩展首页全量 6 种轮换动态欢迎语（Hey guo, what should we build today? 等）
+    greeting_anchor = """    const greeting = trimmed.match(/^Hi ([\\s\\S]+?), what can we get done today\\?$/);
     if (greeting) return value.replace(trimmed, () => `你好，${greeting[1]}，今天想完成什么？`);
     if (/^你好，[\\s\\S]+，今天想完成什么？$/.test(trimmed)) return value;"""
-greeting_patched = """    const greeting = trimmed.match(/^Hi ([\\s\\S]+?), what can we get done today\\?$/);
+    greeting_patched = """    const greeting = trimmed.match(/^Hi ([\\s\\S]+?), what can we get done today\\?$/);
     if (greeting) return value.replace(trimmed, () => `你好，${greeting[1]}，今天想完成什么？`);
     if (trimmed === 'Hey there, what should we build today?') return value.replace(trimmed, '你好，今天想构建什么？');
     const heyNamed = trimmed.match(/^Hey ([\\s\\S]+?), what should we build today\\?$/);
@@ -329,29 +362,29 @@ greeting_patched = """    const greeting = trimmed.match(/^Hi ([\\s\\S]+?), what
     const goodSeeNamed = trimmed.match(/^Good to see you, ([\\s\\S]+?)\\. What's next\\?$/);
     if (goodSeeNamed) return value.replace(trimmed, () => `很高兴见到你，${goodSeeNamed[1]}，接下来做什么？`);
     if (/^(?:你好(?:，[\\s\\S]+)?，今天想(?:完成|构建)什么？|欢迎回来(?:，[\\s\\S]+)?，我们从哪里继续？|很高兴见到你(?:，[\\s\\S]+)?，接下来做什么？)$/.test(trimmed)) return value;"""
-js = replace_once(js, greeting_anchor, greeting_patched, "home_greetings")
+    js = replace_once(js, greeting_anchor, greeting_patched, "home_greetings")
 
-# 3. 修复 [data-cascade-id] 误判主对话视图，并放行消息时间戳与首页欢迎语容器
-skip_anchor = "const historyItem = element.closest('[data-testid=\"conversation-row-sidebar\"], [data-cascade-id], "
-skip_fixed = "const historyItem = element.closest('[data-testid^=\"conversation-row-\"], [data-testid=\"side-question-row\"], [data-testid=\"subagent-node\"], "
-js = replace_once(js, skip_anchor, skip_fixed, "historyItem_selector")
+    # 3. 修复 [data-cascade-id] 误判主对话视图，并放行消息时间戳与首页欢迎语容器
+    skip_anchor = "const historyItem = element.closest('[data-testid=\"conversation-row-sidebar\"], [data-cascade-id], "
+    skip_fixed = "const historyItem = element.closest('[data-testid^=\"conversation-row-\"], [data-testid=\"side-question-row\"], [data-testid=\"subagent-node\"], "
+    js = replace_once(js, skip_anchor, skip_fixed, "historyItem_selector")
 
-user_skip_anchor = """    // 跳过用户输入
+    user_skip_anchor = """    // 跳过用户输入
     if (element.closest('[data-testid="user-input-step"], [aria-label="User message"], [aria-label="用户消息"]')) {
       return true;
     }"""
-user_skip_patched = """    // 跳过用户输入气泡正文（保留 user-message-actions 时间戳与操作按钮）
+    user_skip_patched = """    // 跳过用户输入气泡正文（保留 user-message-actions 时间戳与操作按钮）
     if (element.closest('[data-testid="user-message-bubble"], [data-testid="user-message-content"], .agy-user-bubble, .agy-user-bubble-frame')) {
       return true;
     }"""
-js = replace_once(js, user_skip_anchor, user_skip_patched, "user_input_skip")
+    js = replace_once(js, user_skip_anchor, user_skip_patched, "user_input_skip")
 
-agent_resp_anchor = """    // 跳过回复正文（保留控件、折叠步骤栏、变更概览与系统提示卡片）
+    agent_resp_anchor = """    // 跳过回复正文（保留控件、折叠步骤栏、变更概览与系统提示卡片）
     const agentResponse = element.closest('[aria-label="Agent response"], [aria-label="智能体回复"]');
     if (agentResponse) {
       if (node.nodeType === Node.ELEMENT_NODE && element === agentResponse) return false;
       const isInteractive = element.closest('button, [role="button"], [class*="action"], [class*="button-container"], [data-testid="cleared-step-notice"], .files-changed-header');"""
-agent_resp_patched = """    const userStep = element.closest('[data-testid="user-input-step"], [aria-label="User message"], [aria-label="用户消息"]');
+    agent_resp_patched = """    const userStep = element.closest('[data-testid="user-input-step"], [aria-label="User message"], [aria-label="用户消息"]');
     if (userStep) {
       if (node.nodeType === Node.ELEMENT_NODE && element === userStep) return false;
       if (!element.closest('[data-testid="user-message-actions"], [data-screenshot-volatile], button, [role="button"]')) return true;
@@ -362,41 +395,41 @@ agent_resp_patched = """    const userStep = element.closest('[data-testid="user
     if (agentResponse) {
       if (node.nodeType === Node.ELEMENT_NODE && element === agentResponse) return false;
       const isInteractive = element.closest('button, [role="button"], [class*="action"], [class*="button-container"], [data-testid="cascade-system-message-toolbar"], [data-screenshot-volatile], [data-testid="cleared-step-notice"], .files-changed-header');"""
-js = replace_once(js, agent_resp_anchor, agent_resp_patched, "agent_resp_skip")
+    js = replace_once(js, agent_resp_anchor, agent_resp_patched, "agent_resp_skip")
 
-container_anchor = "    '.antigravity-welcome-container',"
-container_patched = """    '.antigravity-welcome-container',
+    container_anchor = "    '.antigravity-welcome-container',"
+    container_patched = """    '.antigravity-welcome-container',
     '[data-testid="home-greeting"]',"""
-js = replace_once(js, container_anchor, container_patched, "container_sel")
+    js = replace_once(js, container_anchor, container_patched, "container_sel")
 
-# 4. 在 cleanup 中清理标题复检定时器
-cleanup_anchor = """    flushScheduler?.cancel();
+    # 4. 在 cleanup 中清理标题复检定时器
+    cleanup_anchor = """    flushScheduler?.cancel();
     restoreIdeNlsMessages();
     removePreferenceSync?.();"""
-cleanup_patched = """    flushScheduler?.cancel();
+    cleanup_patched = """    flushScheduler?.cancel();
     clearTitleTimers();
     restoreIdeNlsMessages();
     removePreferenceSync?.();"""
-js = replace_once(js, cleanup_anchor, cleanup_patched, "cleanup_timers")
+    js = replace_once(js, cleanup_anchor, cleanup_patched, "cleanup_timers")
 
-# 5. 在 restoreOriginals 末尾还原 document.title
-restore_anchor = """  function restoreOriginals() {
+    # 5. 在 restoreOriginals 末尾还原 document.title
+    restore_anchor = """  function restoreOriginals() {
     const walker = document.createTreeWalker(document, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
       restoreTrackedNode(node);
     }
   }"""
-restore_patched = """  function restoreOriginals() {
+    restore_patched = """  function restoreOriginals() {
     const walker = document.createTreeWalker(document, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
       restoreTrackedNode(node);
     }
     restoreDocTitle();
   }"""
-js = replace_once(js, restore_anchor, restore_patched, "restoreOriginals")
+    js = replace_once(js, restore_anchor, restore_patched, "restoreOriginals")
 
-# 6. 注入自动英文会话标题汉化与侧边栏同步模块
-title_module = r"""  const TITLE_MAP_KEY = 'antigravityHansAutoTitleMap';
+    # 6. 注入自动英文会话标题汉化与侧边栏同步模块
+    title_module = r"""  const TITLE_MAP_KEY = 'antigravityHansAutoTitleMap';
   const CJK_CHAR_RE = /[\u3400-\u9fff\uf900-\ufaff\u3040-\u30ff\uac00-\ud7af]/;
   let originalDocTitle = null;
   let titleResyncTimers = [];
@@ -601,29 +634,32 @@ title_module = r"""  const TITLE_MAP_KEY = 'antigravityHansAutoTitleMap';
 
   function applyChinese(resetMarks) {"""
 
-js = replace_once(js, "  function applyChinese(resetMarks) {", title_module, "title_module")
+    js = replace_once(js, "  function applyChinese(resetMarks) {", title_module, "title_module")
 
-apply_anchor = """    translateNode(document);
+    apply_anchor = """    translateNode(document);
   }"""
-apply_patched = """    translateNode(document);
+    apply_patched = """    translateNode(document);
     syncChineseConversationTitles();
   }"""
-js = replace_once(js, apply_anchor, apply_patched, "applyChinese_end")
+    js = replace_once(js, apply_anchor, apply_patched, "applyChinese_end")
 
-flush_anchor = """    flushScheduler = createFlushScheduler((batchNodes, batchElements) => {
+    flush_anchor = """    flushScheduler = createFlushScheduler((batchNodes, batchElements) => {
       if (cancelled || lang !== 'zh') return;
       for (const node of batchNodes) translateNode(node);
       for (const element of batchElements) translateElement(element);
     });"""
-flush_patched = """    flushScheduler = createFlushScheduler((batchNodes, batchElements) => {
+    flush_patched = """    flushScheduler = createFlushScheduler((batchNodes, batchElements) => {
       if (cancelled || lang !== 'zh') return;
       for (const node of batchNodes) translateNode(node);
       for (const element of batchElements) translateElement(element);
       syncChineseConversationTitles();
     });"""
-js = replace_once(js, flush_anchor, flush_patched, "flushScheduler")
+    js = replace_once(js, flush_anchor, flush_patched, "flushScheduler")
+except AnchorError as exc:
+    sys.stderr.write(f"[警告] 增强补丁部分锚点与新版上游词库不匹配 ({exc})，已自动降级为原生词库。\n")
+    js = raw_js.replace("\r\n", "\n")
 
-final_content = header_comment + "\n" + js + "\n"
+final_content = header_comment + "\n" + js.rstrip() + "\n"
 overlay_dir = os.path.dirname(overlay_path)
 os.makedirs(overlay_dir, exist_ok=True)
 fd, tmp_path = tempfile.mkstemp(prefix=".antigravity-hans-overlay.", suffix=".tmp", dir=overlay_dir)
@@ -641,13 +677,522 @@ PY
 
 cmd_build_overlay() {
   local force="${1:-false}"
-  local hans_bin
-  if ! hans_bin="$(find_hans_bin)"; then
-    echo "[错误] 未找到 antigravity-hans 汉化引擎，请先运行 install.sh 安装。" >&2
-    exit 1
-  fi
-  ensure_enhanced_overlay "$hans_bin" "$force"
-  echo "[成功] 已生成增强汉化覆盖脚本: $(dirname "$hans_bin")/antigravity-hans-overlay.js"
+  ensure_enhanced_overlay "$force"
+  echo "[成功] 已生成增强汉化覆盖脚本: $OVERLAY_FILE"
+}
+
+run_cdp_watcher() {
+  local app_bundle="$1"
+  local overlay_path="$2"
+  local pid_file="$3"
+  local nogui="$4"
+
+  # AGY_ZH_WATCHER_MARKER=1 lets list_active_watcher_pids uniquely identify this launcher watcher.
+  AGY_ZH_WATCHER_MARKER=1 python3 - "$app_bundle" "$overlay_path" "$pid_file" "$nogui" <<'PY'
+import base64
+import hashlib
+import json
+import os
+import re
+import signal
+import socket
+import struct
+import subprocess
+import sys
+import tempfile
+import time
+import urllib.parse
+import urllib.request
+
+app_bundle, overlay_path, pid_file, nogui_flag = sys.argv[1:5]
+nogui = nogui_flag == "true"
+main_exe = os.path.join(app_bundle, "Contents", "MacOS", "Antigravity")
+ignored_types = {"worker", "service_worker", "shared_worker", "background_page"}
+swarm_host_re = re.compile(r"^swarm--swarm_board-[a-z0-9]{5}$")
+preferred_ports = list(range(58321, 58326))
+no_proxy_opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+stopping = False
+
+
+def handle_sig(_signum, _frame):
+    global stopping
+    stopping = True
+
+
+signal.signal(signal.SIGTERM, handle_sig)
+signal.signal(signal.SIGINT, handle_sig)
+signal.signal(signal.SIGHUP, handle_sig)
+
+
+def notify_error(msg):
+    sys.stderr.write(f"[错误] {msg}\n")
+    if nogui:
+        safe = msg.replace("\\", "\\\\").replace('"', '\\"')
+        subprocess.run(
+            ["osascript", "-e", f'display alert "Antigravity 中文" message "{safe}" as critical'],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
+
+def list_antigravity_procs():
+    """Return (main_procs, all_app_pids) for Antigravity.app."""
+    main_procs = []
+    all_pids = []
+    try:
+        out = subprocess.check_output(["ps", "-axo", "pid=,args="], text=True, stderr=subprocess.DEVNULL)
+    except Exception:
+        return main_procs, all_pids
+
+    bundle_marker = "/Antigravity.app/"
+    for line in out.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split(None, 1)
+        if len(parts) < 2:
+            continue
+        try:
+            pid = int(parts[0])
+        except ValueError:
+            continue
+        args = parts[1]
+        if bundle_marker not in args and not args.startswith(app_bundle):
+            continue
+        all_pids.append(pid)
+        if "/Contents/MacOS/Antigravity" in args and "Helper" not in args.split("/Contents/MacOS/")[0]:
+            m = re.search(r"--remote-debugging-port=(\d+)", args)
+            port = int(m.group(1)) if m else 0
+            main_procs.append((pid, port))
+    return main_procs, all_pids
+
+
+def read_cdp_json(port, path, timeout=1.0):
+    url = f"http://127.0.0.1:{port}{path}"
+    req = urllib.request.Request(url, method="GET")
+    with no_proxy_opener.open(req, timeout=timeout) as resp:
+        if resp.status != 200:
+            raise RuntimeError(f"HTTP {resp.status}")
+        return json.loads(resp.read(2 * 1024 * 1024).decode("utf-8"))
+
+
+def validate_ws_url(raw_url, expected_port):
+    u = urllib.parse.urlparse(raw_url)
+    if u.scheme != "ws":
+        raise ValueError("invalid scheme")
+    host = (u.hostname or "").lower()
+    if host not in ("127.0.0.1", "localhost"):
+        raise ValueError("non-loopback host")
+    if u.port != expected_port:
+        raise ValueError("port mismatch")
+    if not (u.path.startswith("/devtools/page/") or u.path.startswith("/devtools/browser/")):
+        raise ValueError("invalid devtools path")
+    return u.path
+
+
+class MiniWebSocket:
+    def __init__(self, port, path, timeout=5.0):
+        self.sock = socket.create_connection(("127.0.0.1", port), timeout=timeout)
+        self.buf = bytearray()
+        self._id = 1
+
+        key = base64.b64encode(os.urandom(16)).decode("ascii")
+        handshake = (
+            f"GET {path} HTTP/1.1\r\n"
+            f"Host: 127.0.0.1:{port}\r\n"
+            f"Upgrade: websocket\r\n"
+            f"Connection: Upgrade\r\n"
+            f"Sec-WebSocket-Key: {key}\r\n"
+            f"Sec-WebSocket-Version: 13\r\n\r\n"
+        ).encode("ascii")
+        self.sock.sendall(handshake)
+
+        while b"\r\n\r\n" not in self.buf:
+            chunk = self.sock.recv(4096)
+            if not chunk:
+                raise ConnectionError("WebSocket 握手连接关闭")
+            self.buf.extend(chunk)
+        header_end = self.buf.index(b"\r\n\r\n") + 4
+        header = bytes(self.buf[:header_end]).decode("latin1")
+        del self.buf[:header_end]
+        if " 101 " not in header.splitlines()[0]:
+            raise ConnectionError(f"WebSocket 握手失败: {header.splitlines()[0]}")
+
+    def close(self):
+        try:
+            self.sock.close()
+        except Exception:
+            pass
+
+    def _read_exact(self, n):
+        while len(self.buf) < n:
+            chunk = self.sock.recv(max(4096, n - len(self.buf)))
+            if not chunk:
+                raise EOFError("WebSocket 连接已断开")
+            self.buf.extend(chunk)
+        out = bytes(self.buf[:n])
+        del self.buf[:n]
+        return out
+
+    def _send_frame(self, opcode, payload):
+        mask = os.urandom(4)
+        length = len(payload)
+        header = bytearray([0x80 | (opcode & 0x0F)])
+        if length < 126:
+            header.append(0x80 | length)
+        elif length <= 0xFFFF:
+            header.append(0x80 | 126)
+            header.extend(struct.pack("!H", length))
+        else:
+            header.append(0x80 | 127)
+            header.extend(struct.pack("!Q", length))
+        header.extend(mask)
+        masked = bytes(b ^ mask[i & 3] for i, b in enumerate(payload))
+        self.sock.sendall(bytes(header) + masked)
+
+    def send_text(self, text):
+        self._send_frame(0x1, text.encode("utf-8"))
+
+    def recv_text(self, timeout=5.0):
+        self.sock.settimeout(timeout)
+        fragments = []
+        while True:
+            b1, b2 = self._read_exact(2)
+            fin = (b1 & 0x80) != 0
+            opcode = b1 & 0x0F
+            masked = (b2 & 0x80) != 0
+            length = b2 & 0x7F
+            if length == 126:
+                length = struct.unpack("!H", self._read_exact(2))[0]
+            elif length == 127:
+                length = struct.unpack("!Q", self._read_exact(8))[0]
+            mask = self._read_exact(4) if masked else b""
+            payload = self._read_exact(length) if length > 0 else b""
+            if masked:
+                payload = bytes(b ^ mask[i & 3] for i, b in enumerate(payload))
+
+            if opcode == 0x8:
+                raise EOFError("WebSocket close frame")
+            if opcode == 0x9:
+                self._send_frame(0xA, payload)
+                continue
+            if opcode == 0xA:
+                continue
+            if opcode in (0x1, 0x2, 0x0):
+                fragments.append(payload)
+                if fin:
+                    return b"".join(fragments).decode("utf-8", errors="replace")
+
+    def call(self, method, params=None, timeout=6.0):
+        req_id = self._id
+        self._id += 1
+        self.send_text(json.dumps({"id": req_id, "method": method, "params": params or {}}))
+        deadline = time.monotonic() + timeout
+        while True:
+            rem = deadline - time.monotonic()
+            if rem <= 0:
+                raise TimeoutError(f"CDP {method} 超时")
+            msg = json.loads(self.recv_text(timeout=rem))
+            if msg.get("id") == req_id:
+                if "error" in msg:
+                    raise RuntimeError(f"CDP {method} 错误: {msg['error']}")
+                res = msg.get("result") or {}
+                if "exceptionDetails" in res:
+                    raise RuntimeError(f"JS 异常: {res['exceptionDetails']}")
+                return res
+
+
+def is_target_page(raw_url):
+    lower = (raw_url or "").lower()
+    if lower.startswith("data:text/html"):
+        return True
+    try:
+        u = urllib.parse.urlparse(raw_url)
+    except Exception:
+        return False
+    host = (u.hostname or "").lower()
+    return u.scheme in ("http", "https") and not u.username and host in ("127.0.0.1", "localhost", "::1")
+
+
+def is_swarm_target(target):
+    if target.get("type") != "iframe":
+        return False
+    try:
+        u = urllib.parse.urlparse(target.get("url") or "")
+    except Exception:
+        return False
+    if u.scheme != "plugin" or u.username or u.port is not None or u.path not in ("", "/") or u.query or u.fragment:
+        return False
+    return bool(swarm_host_re.match((u.hostname or "").lower()))
+
+
+def check_port_targets(port):
+    try:
+        items = read_cdp_json(port, "/json/list", timeout=1.0)
+    except Exception:
+        return []
+    out = []
+    for t in items:
+        if t.get("type") in ignored_types:
+            continue
+        ws_url = t.get("webSocketDebuggerUrl") or ""
+        try:
+            ws_path = validate_ws_url(ws_url, port)
+        except Exception:
+            continue
+        if not ws_path.startswith("/devtools/page/"):
+            continue
+        t["_ws_path"] = ws_path
+        out.append(t)
+    return out
+
+
+def ensure_injected(target, port, overlay_source, fingerprint):
+    ws_path = target.get("_ws_path") or f"/devtools/page/{target['id']}"
+    is_swarm = is_swarm_target(target)
+    if not is_target_page(target.get("url", "")) and not is_swarm:
+        return False
+
+    ws = MiniWebSocket(port, ws_path, timeout=4.0)
+    try:
+        check_expr = (
+            "window.__antigravityZhPatchInstalled === true && "
+            "window.__observedDocument === document && "
+            f"window.__antigravityZhPatchFingerprint === {json.dumps(fingerprint)}"
+        )
+        res = ws.call("Runtime.evaluate", {"expression": check_expr, "returnByValue": True})
+        if (res.get("result") or {}).get("value") is True:
+            return True
+
+        wrapped = f"window.__antigravityZhPatchRequestedFingerprint = {json.dumps(fingerprint)};\n{overlay_source}"
+        if is_swarm:
+            host = urllib.parse.urlparse(target["url"]).hostname
+            wrapped = (
+                "(() => { if (location.protocol !== 'plugin:' || location.hostname !== "
+                + json.dumps(host)
+                + " || (location.pathname !== '/' && location.pathname !== '') || "
+                "!document.querySelector('[data-testid=\"swarm-tabs\"]') || "
+                "!document.querySelector('[data-testid=\"swarm-empty-state\"]')) return;\n"
+                + wrapped
+                + "\n})()"
+            )
+        else:
+            try:
+                ws.call("Page.enable")
+            except Exception:
+                pass
+            ws.call("Page.addScriptToEvaluateOnNewDocument", {"source": wrapped})
+
+        ws.call("Runtime.evaluate", {"expression": wrapped, "awaitPromise": False}, timeout=8.0)
+        verify = ws.call("Runtime.evaluate", {"expression": check_expr, "returnByValue": True})
+        return (verify.get("result") or {}).get("value") is True
+    finally:
+        ws.close()
+
+
+def select_free_port():
+    for port in preferred_ports:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            s.bind(("127.0.0.1", port))
+            return port
+        except OSError:
+            pass
+        finally:
+            s.close()
+    raise RuntimeError(f"候选端口均被占用: {preferred_ports}")
+
+
+def acquire_port():
+    main_procs, all_pids = list_antigravity_procs()
+    for _pid, dport in main_procs:
+        if dport > 0:
+            try:
+                read_cdp_json(dport, "/json/version", timeout=1.0)
+                print(f"[信息] 检测到 Antigravity 已以中文调试模式运行 (端口 {dport})，直接附着监视。")
+                return dport
+            except Exception:
+                pass
+
+    if all_pids:
+        print("[提示] 检测到原版 Antigravity 正在运行，正在请求正常退出以保留会话状态...")
+        subprocess.run(
+            ["osascript", "-e", f'tell application "{app_bundle}" to quit'],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        deadline = time.monotonic() + 8.0
+        while time.monotonic() < deadline:
+            if not list_antigravity_procs()[1]:
+                break
+            time.sleep(0.25)
+        if list_antigravity_procs()[1]:
+            raise RuntimeError("原版 Antigravity 未能自动退出，请先保存工作并手动退出后再点「Antigravity 中文」。")
+
+    port = select_free_port()
+    if not os.path.isfile(main_exe):
+        raise RuntimeError(f"未找到可执行文件: {main_exe}")
+    print(f"[信息] 正在启动 Antigravity 中文调试会话 (端口 {port})...")
+    subprocess.Popen(
+        [main_exe, f"--remote-debugging-port={port}", "--remote-debugging-address=127.0.0.1"],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    deadline = time.monotonic() + 20.0
+    while time.monotonic() < deadline and not stopping:
+        try:
+            read_cdp_json(port, "/json/version", timeout=0.8)
+            return port
+        except Exception:
+            time.sleep(0.3)
+    raise RuntimeError(f"等待 Antigravity 调试端口 ({port}) 就绪超时。")
+
+
+def write_pidfile():
+    os.makedirs(os.path.dirname(pid_file), exist_ok=True)
+    fd, tmp = tempfile.mkstemp(prefix=".agy-zh.", suffix=".pid", dir=os.path.dirname(pid_file))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(str(os.getpid()) + "\n")
+        os.replace(tmp, pid_file)
+    except Exception:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+        raise
+
+
+def remove_pidfile():
+    try:
+        if os.path.isfile(pid_file):
+            with open(pid_file, "r", encoding="utf-8") as f:
+                if f.read().strip() == str(os.getpid()):
+                    os.unlink(pid_file)
+    except Exception:
+        pass
+
+
+def main():
+    with open(overlay_path, "r", encoding="utf-8") as f:
+        overlay_source = f.read()
+    fingerprint = hashlib.sha256(overlay_source.encode("utf-8")).hexdigest()[:16]
+
+    try:
+        port = acquire_port()
+    except Exception as exc:
+        notify_error(str(exc))
+        sys.exit(1)
+
+    write_pidfile()
+    injected_ids = set()
+    browser_ws = None
+
+    def connect_browser():
+        ver = read_cdp_json(port, "/json/version", timeout=1.0)
+        ws_url = ver.get("webSocketDebuggerUrl") or ""
+        path = validate_ws_url(ws_url, port)
+        ws = MiniWebSocket(port, path, timeout=4.0)
+        ws.send_text(json.dumps({"id": 1, "method": "Target.setDiscoverTargets", "params": {"discover": True}}))
+        return ws
+
+    try:
+        for t in check_port_targets(port):
+            try:
+                if ensure_injected(t, port, overlay_source, fingerprint):
+                    injected_ids.add(t["id"])
+            except Exception:
+                pass
+
+        for _ in range(15):
+            if stopping:
+                break
+            try:
+                browser_ws = connect_browser()
+                break
+            except Exception:
+                time.sleep(0.3)
+
+        if browser_ws is None and not stopping:
+            notify_error(f"无法建立 CDP 事件连接 (端口 {port})")
+            sys.exit(1)
+
+        print(f"[成功] 已进入 Antigravity 中文监视状态 (端口 {port})。")
+        last_sweep = time.monotonic()
+
+        while not stopping:
+            now = time.monotonic()
+            if now - last_sweep >= 2.0:
+                last_sweep = now
+                for t in check_port_targets(port):
+                    if t["id"] not in injected_ids:
+                        try:
+                            if ensure_injected(t, port, overlay_source, fingerprint):
+                                injected_ids.add(t["id"])
+                        except Exception:
+                            pass
+                if not list_antigravity_procs()[1]:
+                    try:
+                        read_cdp_json(port, "/json/version", timeout=0.6)
+                    except Exception:
+                        break
+
+            try:
+                raw_msg = browser_ws.recv_text(timeout=1.5)
+                msg = json.loads(raw_msg)
+                method = msg.get("method")
+                params = msg.get("params") or {}
+                if method == "Target.targetDestroyed":
+                    tid = params.get("targetId")
+                    injected_ids.discard(tid)
+                elif method in ("Target.targetCreated", "Target.targetInfoChanged"):
+                    info = params.get("targetInfo") or {}
+                    tid = info.get("targetId") or ""
+                    if tid and info.get("type") not in ignored_types and tid not in injected_ids:
+                        t = {
+                            "id": tid,
+                            "type": info.get("type", ""),
+                            "url": info.get("url", ""),
+                            "_ws_path": f"/devtools/page/{tid}",
+                        }
+                        try:
+                            if ensure_injected(t, port, overlay_source, fingerprint):
+                                injected_ids.add(tid)
+                        except Exception:
+                            pass
+            except (TimeoutError, socket.timeout):
+                continue
+            except Exception:
+                try:
+                    browser_ws.close()
+                except Exception:
+                    pass
+                browser_ws = None
+                reconnected = False
+                backoff = 0.5
+                reconnect_deadline = time.monotonic() + 30.0
+                while not stopping and time.monotonic() < reconnect_deadline:
+                    if not list_antigravity_procs()[1]:
+                        break
+                    time.sleep(backoff)
+                    try:
+                        browser_ws = connect_browser()
+                        reconnected = True
+                        break
+                    except Exception:
+                        backoff = min(backoff * 2, 5.0)
+                if not reconnected:
+                    break
+    finally:
+        if browser_ws is not None:
+            browser_ws.close()
+        remove_pidfile()
+
+
+if __name__ == "__main__":
+    main()
+PY
 }
 
 cmd_start() {
@@ -665,25 +1210,13 @@ cmd_start() {
     esac
   done
 
-  local hans_bin
-  if ! hans_bin="$(find_hans_bin)"; then
-    echo "[错误] 未找到 antigravity-hans 汉化引擎，请先运行 install.sh 安装。" >&2
+  local orig_app
+  if ! orig_app="$(find_original_app)"; then
+    echo "[错误] 未检测到 Antigravity.app（请确认已安装至 /Applications 或 ~/Applications）。" >&2
     exit 1
   fi
 
-  if ! ensure_enhanced_overlay "$hans_bin"; then
-    echo "[警告] 生成增强汉化脚本失败，将回退使用引擎内置词库。" >&2
-  fi
-
-  local hans_args=(--app)
-  local overlay_file
-  overlay_file="$(dirname "$hans_bin")/antigravity-hans-overlay.js"
-  if [[ -f "$overlay_file" ]]; then
-    hans_args+=(--trust-external-overlay)
-  fi
-  if [[ "$nogui" == "true" ]]; then
-    hans_args+=(--nogui)
-  fi
+  ensure_enhanced_overlay false
 
   if [[ -f "$PLUGIN_DIR/plugin.json" ]]; then
     set_plugin_enabled true
@@ -695,21 +1228,23 @@ cmd_start() {
     local exit_code=$?
     trap - EXIT INT TERM HUP
     sleep 0.3
-    if ! has_active_hans_monitor; then
+    if ! has_active_watcher; then
       set_plugin_enabled false >/dev/null 2>&1 || true
     fi
     exit "$exit_code"
   }
   trap cleanup EXIT INT TERM HUP
 
-  "$hans_bin" "${hans_args[@]}"
+  run_cdp_watcher "$orig_app" "$OVERLAY_FILE" "$PID_FILE" "$nogui"
 }
 
 cmd_stop() {
-  local hans_bin=""
-  if hans_bin="$(find_hans_bin)"; then
-    "$hans_bin" --stop --app >/dev/null 2>&1 || true
-  fi
+  local pids pid
+  pids="$(list_active_watcher_pids || true)"
+  for pid in $pids; do
+    kill -TERM "$pid" 2>/dev/null || true
+  done
+  rm -f "$PID_FILE"
   set_plugin_enabled false
   echo "[成功] 已停止中文汉化监视器，并已关闭 $PLUGIN_NAME 插件（原版入口已恢复纯净）。"
 }
@@ -796,7 +1331,7 @@ PLIST
   cat >"$macos_dir/launcher" <<LAUNCHER
 #!/bin/bash
 LOG_DIR="\$HOME/Library/Logs"
-LOG_FILE="\$LOG_DIR/antigravity-hans.log"
+LOG_FILE="\$LOG_DIR/agy-zh.log"
 mkdir -p "\$LOG_DIR"
 nohup '${escaped_self}' start --nogui >> "\$LOG_FILE" 2>&1 &
 LAUNCHER
@@ -818,7 +1353,7 @@ LAUNCHER
 }
 
 cmd_status() {
-  local orig_app hans_bin shortcut_app plugin_state
+  local orig_app shortcut_app plugin_state
   echo "=== Antigravity 双入口汉化状态 ==="
 
   if orig_app="$(find_original_app)"; then
@@ -833,17 +1368,11 @@ cmd_status() {
     echo "中文入口 (双效联动): 未创建（可运行 agy-zh shortcut 生成）"
   fi
 
-  if hans_bin="$(find_hans_bin)"; then
-    echo "动态汉化引擎 (CDP) : $hans_bin"
-    local overlay_file
-    overlay_file="$(dirname "$hans_bin")/antigravity-hans-overlay.js"
-    if [[ -f "$overlay_file" ]]; then
-      echo "增强汉化覆盖脚本   : 已就绪 ($overlay_file)"
-    else
-      echo "增强汉化覆盖脚本   : 未生成（可运行 agy-zh build-overlay 生成）"
-    fi
+  echo "本地 CDP 注入引擎  : 内置纯脚本引擎（无第三方二进制，零误报）"
+  if [[ -f "$OVERLAY_FILE" ]]; then
+    echo "增强汉化覆盖脚本   : 已就绪 ($OVERLAY_FILE)"
   else
-    echo "动态汉化引擎 (CDP) : 未安装"
+    echo "增强汉化覆盖脚本   : 未生成（可运行 agy-zh build-overlay 生成）"
   fi
 
   if [[ -f "$PLUGIN_DIR/plugin.json" ]]; then
@@ -860,7 +1389,7 @@ cmd_status() {
   fi
 
   local pids
-  pids="$(list_active_hans_pids | tr '\n' ' ' || true)"
+  pids="$(list_active_watcher_pids | tr '\n' ' ' || true)"
   if [[ -n "${pids// /}" ]]; then
     echo "后台汉化监视器进程 : 运行中 (PID: ${pids% })"
   else
@@ -875,16 +1404,17 @@ agy-zh - Antigravity 双入口无损汉化与中文思考提示词联动启动�
 用法:
   agy-zh [start] [--nogui]   开启中文思考插件并启动 Antigravity 中文界面，退出后自动还原
   agy-zh stop                停止后台汉化监视器，并立即关闭中文思考插件
-  agy-zh status              查看双入口、底层引擎、插件及监视进程状态
+  agy-zh status              查看双入口、插件及监视进程状态
   agy-zh prompt <on|off|status>
                              手动开启、关闭或查询中文思考提示词插件状态
   agy-zh build-overlay [--force]
-                             生成或刷新增强汉化脚本（修复输入框提示与英文标题汉化）
+                             重新拉取词库或刷新增强汉化脚本
   agy-zh shortcut            在应用程序目录生成「Antigravity 中文.app」
   agy-zh help                显示此帮助信息
 
 环境变量:
-  AGY_HANS_BIN               自定义 antigravity-hans 二进制路径
+  AGY_ZH_OVERLAY_URL         自定义上游基础汉化 JS 地址
+  AGY_ZH_DATA_DIR            自定义词库与覆盖脚本缓存目录（默认 ~/.local/bin）
   GEMINI_CONFIG_DIR          自定义 Gemini 配置目录（默认 ~/.gemini/config）
 HELP
 }

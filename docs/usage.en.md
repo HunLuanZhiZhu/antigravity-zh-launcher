@@ -30,7 +30,7 @@ The installer sets up the `agy-zh` command on both macOS and Windows (PowerShell
 
 ## Full Purge Uninstall
 
-The standard uninstall command on the home page cleanly restores your setup and removes the Chinese entry while keeping the cached translation binary for easy re-install. To remove everything including that binary:
+The standard uninstall command on the home page cleanly restores your setup and removes the Chinese entry while keeping the cached plain-text localization dictionary script for easy re-install. To remove everything including cached scripts and logs:
 
 **macOS:**
 

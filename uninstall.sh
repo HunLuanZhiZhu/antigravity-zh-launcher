@@ -6,6 +6,7 @@ CONFIG_DIR="${GEMINI_CONFIG_DIR:-$HOME/.gemini/config}"
 CONFIG_FILE="$CONFIG_DIR/config.json"
 PLUGIN_DEST="$CONFIG_DIR/plugins/$PLUGIN_NAME"
 LOCAL_BIN="$HOME/.local/bin"
+DATA_DIR="${AGY_ZH_DATA_DIR:-$LOCAL_BIN}"
 PURGE_ENGINE="false"
 
 usage() {
@@ -16,7 +17,7 @@ Antigravity 双入口中文启动器卸载脚本 (macOS)
   ./uninstall.sh [选项]
 
 选项:
-  --purge      一并删除 ~/.local/bin/antigravity-hans 底层汉化引擎
+  --purge      一并删除本地缓存的基础汉化词库脚本及日志
   -h, --help   显示帮助信息
 EOF
 }
@@ -102,9 +103,9 @@ else
   done
 fi
 
-if [[ -f "$LOCAL_BIN/antigravity-hans-overlay.js" ]]; then
-  rm -f "$LOCAL_BIN/antigravity-hans-overlay.js"
-  echo "[成功] 已删除增强汉化覆盖脚本: $LOCAL_BIN/antigravity-hans-overlay.js"
+if [[ -f "$DATA_DIR/antigravity-hans-overlay.js" ]]; then
+  rm -f "$DATA_DIR/antigravity-hans-overlay.js"
+  echo "[成功] 已删除增强汉化覆盖脚本: $DATA_DIR/antigravity-hans-overlay.js"
 fi
 
 if [[ -f "$LOCAL_BIN/agy-zh" ]]; then
@@ -112,9 +113,16 @@ if [[ -f "$LOCAL_BIN/agy-zh" ]]; then
   echo "[成功] 已删除 CLI: $LOCAL_BIN/agy-zh"
 fi
 
-if [[ "$PURGE_ENGINE" == "true" && -f "$LOCAL_BIN/antigravity-hans" ]]; then
-  rm -f "$LOCAL_BIN/antigravity-hans"
-  echo "[成功] 已删除底层汉化引擎: $LOCAL_BIN/antigravity-hans"
+if [[ "$PURGE_ENGINE" == "true" ]]; then
+  if [[ -f "$DATA_DIR/antigravity-hans-overlay.base.js" ]]; then
+    rm -f "$DATA_DIR/antigravity-hans-overlay.base.js"
+    echo "[成功] 已删除基础汉化词库脚本: $DATA_DIR/antigravity-hans-overlay.base.js"
+  fi
+  if [[ -f "$LOCAL_BIN/antigravity-hans" ]]; then
+    rm -f "$LOCAL_BIN/antigravity-hans"
+    echo "[成功] 已删除旧版残留二进制: $LOCAL_BIN/antigravity-hans"
+  fi
+  rm -f "$HOME/Library/Logs/agy-zh.log" "$HOME/Library/Logs/agy-zh-cdp.pid" "$HOME/Library/Logs/antigravity-hans.log"
 fi
 
 echo ""

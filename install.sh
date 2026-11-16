@@ -2,7 +2,6 @@
 set -euo pipefail
 
 REPO_RAW_BASE="${AGY_ZH_REPO_RAW:-https://raw.githubusercontent.com/guuguo/antigravity-zh-launcher/main}"
-HANS_RELEASE_BASE="https://github.com/yuexps/Antigravity-Hans/releases/latest/download"
 PLUGIN_NAME="antigravity-zh-prompt"
 CONFIG_DIR="${GEMINI_CONFIG_DIR:-$HOME/.gemini/config}"
 PLUGIN_DEST="$CONFIG_DIR/plugins/$PLUGIN_NAME"
@@ -19,7 +18,7 @@ Antigravity 双入口中文启动器安装脚本 (macOS)
   ./install.sh [选项]
 
 选项:
-  --update-engine   即使本机已安装 antigravity-hans，也重新下载最新版并校验 SHA-256
+  --update-engine   强制重新拉取最新汉化词库脚本并重建增强覆盖脚本
   --no-shortcut     仅安装 CLI 与提示词插件，不生成「Antigravity 中文.app」
   -h, --help        显示帮助信息
 EOF
@@ -52,7 +51,7 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
   exit 1
 fi
 
-for cmd in python3 curl shasum; do
+for cmd in python3 curl grep; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
     echo "[错误] 缺少必需系统工具: $cmd" >&2
     exit 1
@@ -92,57 +91,23 @@ else
 fi
 
 mkdir -p "$LOCAL_BIN"
-HANS_BIN="$LOCAL_BIN/antigravity-hans"
 
-if [[ "$UPDATE_ENGINE" == "false" && -x "$HANS_BIN" ]]; then
-  echo "[信息] 检测到已安装的汉化引擎，直接复用: $HANS_BIN"
-else
-  ARCH="$(uname -m)"
-  case "$ARCH" in
-    arm64)
-      ASSET_NAME="antigravity-hans-macos-arm64"
-      ;;
-    x86_64)
-      ASSET_NAME="antigravity-hans-macos-amd64"
-      ;;
-    *)
-      echo "[错误] 不支持的 macOS CPU 架构: $ARCH" >&2
-      exit 1
-      ;;
-  esac
-
-  if [[ -z "$TMP_DIR" ]]; then
-    TMP_DIR="$(mktemp -d)"
-  fi
-  ENGINE_DIR="$TMP_DIR/engine"
-  mkdir -p "$ENGINE_DIR"
-
-  echo "[信息] 正在下载汉化引擎 ($ASSET_NAME) 并验证 SHA-256..."
-  curl -fsSL --retry 2 --connect-timeout 15 "$HANS_RELEASE_BASE/$ASSET_NAME" -o "$ENGINE_DIR/$ASSET_NAME"
-  curl -fsSL --retry 2 --connect-timeout 15 "$HANS_RELEASE_BASE/SHA256SUMS" -o "$ENGINE_DIR/SHA256SUMS"
-
-  HASH_LINE="$(grep -E "[[:space:]]${ASSET_NAME}$" "$ENGINE_DIR/SHA256SUMS" || true)"
-  if [[ -z "$HASH_LINE" ]]; then
-    echo "[错误] 在官方 SHA256SUMS 中未找到 $ASSET_NAME 的校验和。" >&2
-    exit 1
-  fi
-  (
-    cd "$ENGINE_DIR"
-    printf '%s\n' "$HASH_LINE" | shasum -a 256 -c -
-  )
-
-  mv -f "$ENGINE_DIR/$ASSET_NAME" "$HANS_BIN"
-  chmod 755 "$HANS_BIN"
-  xattr -c "$HANS_BIN" >/dev/null 2>&1 || true
-  echo "[成功] 汉化引擎已安装至: $HANS_BIN"
+# 清理旧版本遗留的第三方二进制，全面切换为内置零二进制 CDP 脚本引擎
+if [[ -f "$LOCAL_BIN/antigravity-hans" ]]; then
+  rm -f "$LOCAL_BIN/antigravity-hans"
+  echo "[信息] 已移除旧版外部二进制: $LOCAL_BIN/antigravity-hans"
 fi
 
 cp -f "$SOURCE_ROOT/bin/agy-zh" "$LOCAL_BIN/agy-zh"
 chmod 755 "$LOCAL_BIN/agy-zh"
 xattr -c "$LOCAL_BIN/agy-zh" >/dev/null 2>&1 || true
-echo "[成功] 双入口编排 CLI 已安装至: $LOCAL_BIN/agy-zh"
+echo "[成功] 双入口编排 CLI（内置纯脚本 CDP 引擎）已安装至: $LOCAL_BIN/agy-zh"
 
-"$LOCAL_BIN/agy-zh" build-overlay --force
+if [[ "$UPDATE_ENGINE" == "true" ]]; then
+  "$LOCAL_BIN/agy-zh" build-overlay --force
+else
+  "$LOCAL_BIN/agy-zh" build-overlay
+fi
 
 mkdir -p "$PLUGIN_DEST/assets" "$PLUGIN_DEST/rules"
 cp -f "$SOURCE_ROOT/plugins/$PLUGIN_NAME/plugin.json" "$PLUGIN_DEST/plugin.json"

@@ -36,6 +36,7 @@ irm https://raw.githubusercontent.com/guuguo/antigravity-zh-launcher/main/instal
 - **Open Chinese mode**: Launch **Antigravity 中文** from your **Desktop / Start Menu (Windows)** or **Applications / Spotlight (macOS)** to get a Chinese UI plus Chinese AI thinking and answers.
 - **Keep stock English**: Launch your existing **Antigravity** icon anytime for the original untouched English interface and prompts.
 - **Auto-resets on exit**: Exiting Chinese mode or switching back automatically restores the clean stock prompt state so the two entries never interfere.
+- **Pure-script, zero binaries**: Uses native PowerShell (.NET WebSocket) on Windows and Bash/Python on macOS for local CDP injection — **no external `.exe` or compiled binaries** are downloaded or executed, avoiding antivirus heuristic false positives.
 
 ---
 
@@ -61,5 +62,5 @@ irm https://raw.githubusercontent.com/guuguo/antigravity-zh-launcher/main/uninst
 
 ## Credits & License
 
-- UI localization powered by [yuexps/Antigravity-Hans](https://github.com/yuexps/Antigravity-Hans) · Released under the [MIT License](LICENSE)
+- Base UI localization JS script referenced from [yuexps/Antigravity-Hans](https://github.com/yuexps/Antigravity-Hans) · Launcher released under the [MIT License](LICENSE)
 - Shout-out to the [LINUX DO](https://linux.do/) community for feedback and support

@@ -37,6 +37,7 @@ irm https://raw.githubusercontent.com/guuguo/antigravity-zh-launcher/main/instal
 - **打开中文版**：在**桌面 / 开始菜单（Windows）**或 **应用程序 / 聚焦搜索（macOS）**中打开 **「Antigravity 中文」**，界面自动变中文，AI 也会全程用中文思考和回答。
 - **保留英文原版**：平时直接点原有的 **Antigravity** 图标，依然是原汁原味的英文界面与英文思考，完全不受影响。
 - **退出自动还原**：关闭中文会话或切回原版后会自动还原默认状态，双入口长期共存不串味。
+- **纯脚本零二进制**：Windows 端采用系统原生 PowerShell（.NET WebSocket）、macOS 端采用内置 Bash/Python 实现本地 CDP 注入，**不下载也不运行任何外部 `.exe` 二进制文件**，代码全明文可审计，避免杀软误报。
 
 ---
 
@@ -62,5 +63,5 @@ irm https://raw.githubusercontent.com/guuguo/antigravity-zh-launcher/main/uninst
 
 ## 致谢与许可
 
-- 界面汉化能力由 [yuexps/Antigravity-Hans](https://github.com/yuexps/Antigravity-Hans) 提供 · 基于 [MIT License](LICENSE) 开源
+- 基础界面汉化词库 JS 脚本参考 [yuexps/Antigravity-Hans](https://github.com/yuexps/Antigravity-Hans) · 本项目代码基于 [MIT License](LICENSE) 开源
 - 感谢 [LINUX DO](https://linux.do/) 社区佬友们的交流与反馈
