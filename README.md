@@ -1,6 +1,7 @@
 # Antigravity 中文
 
 > 为 Antigravity 桌面端提供**开箱即用的完整中文体验** —— 安装后生成独立图标 **「Antigravity 中文」**，点开即享**中文界面 + AI 中文思考与回答**；原有的英文版 **Antigravity** 丝毫不动，双入口自由切换、互不干扰。
+> 如果这个工具帮到了你，欢迎点击右上角 **Star ⭐️** 支持一下，也方便后续获取版本同步更新。
 
 [简体中文](README.md) · [English](README.en.md)
 
