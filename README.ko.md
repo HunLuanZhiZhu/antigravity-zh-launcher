@@ -4,6 +4,8 @@
 
 Antigravity에 언어별 실행 아이콘, UI 번역 및 AI 언어 규칙을 추가합니다. 인수 없이 설치하면 기존과 동일하게 **zh-CN / Antigravity 中文**을 사용합니다. 기존 `agy-zh` 명령과 경로를 유지하며 원본 앱 파일은 변경하지 않습니다.
 
+![Antigravity 한국어 UI](docs/assets/real-ui-ko.png)
+
 ## 설치
 
 먼저 Antigravity를 설치하세요. macOS는 Bash, Python 3, curl을, Windows는 기본 제공 Windows PowerShell 5.1을 사용합니다. 실행 시 Node.js는 필요하지 않습니다.
@@ -15,7 +17,7 @@ bash install.sh --lang ko
 ```
 
 ```powershell
-& .\install.ps1 --lang ko
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 --lang ko
 ```
 
 원격 설치(한국어 예시. 인수를 생략하면 중국어 간체):
@@ -53,7 +55,7 @@ bash uninstall.sh --lang ko --purge
 
 ```powershell
 agy-zh --lang ko start
-& .\uninstall.ps1 --lang ko --purge
+powershell -NoProfile -ExecutionPolicy Bypass -File .\uninstall.ps1 --lang ko --purge
 ```
 
 기본 제거 대상은 중국어 간체입니다. `--lang`으로 지정한 언어만 제거합니다. 마지막 언어를 제거하면 공통 런타임도 정리합니다. `--purge`는 해당 캐시도 제거하며 다른 언어의 아이콘은 유지합니다.

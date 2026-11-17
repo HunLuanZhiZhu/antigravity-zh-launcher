@@ -4,6 +4,8 @@
 
 Antigravity に言語別の起動アイコン、UI 翻訳、AI の言語ルールを追加します。引数なしのインストールは従来どおり **zh-CN / Antigravity 中文** です。既存の `agy-zh` コマンドとパスを維持し、元のアプリのファイルは変更しません。
 
+![Antigravity 日本語 UI](docs/assets/real-ui-ja.png)
+
 ## インストール
 
 先に Antigravity をインストールしてください。macOS では Bash、Python 3、curl、Windows では標準の Windows PowerShell 5.1 を使用します。実行時に Node.js は不要です。
@@ -15,7 +17,7 @@ bash install.sh --lang ja
 ```
 
 ```powershell
-& .\install.ps1 --lang ja
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 --lang ja
 ```
 
 リモートインストール（日本語。`--lang ja` を省略すると簡体字中国語）：
@@ -53,7 +55,7 @@ bash uninstall.sh --lang ja --purge
 
 ```powershell
 agy-zh --lang ja start
-& .\uninstall.ps1 --lang ja --purge
+powershell -NoProfile -ExecutionPolicy Bypass -File .\uninstall.ps1 --lang ja --purge
 ```
 
 引数なしでは簡体字中国語だけを削除します。`--lang` で削除する言語を指定してください。最後の言語を削除したときに共通ランタイムも削除します。`--purge` は該当するキャッシュも削除します。他の言語のアイコンは維持されます。
