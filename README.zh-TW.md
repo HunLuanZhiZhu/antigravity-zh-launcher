@@ -4,6 +4,8 @@
 
 為 Antigravity 提供獨立語言入口、介面翻譯與 AI 語言規則。不帶參數安裝時，仍使用 **zh-CN / Antigravity 中文**。保留既有 `agy-zh` 指令、快取與外掛路徑，不變更原版應用程式檔案。
 
+![Antigravity 繁體中文 UI](docs/assets/real-ui-zh-tw.png)
+
 ## 安裝
 
 請先安裝 Antigravity。macOS 需要 Bash、Python 3 與 curl；Windows 使用系統內建 Windows PowerShell 5.1。執行時不需要 Node.js。
@@ -15,7 +17,7 @@ bash install.sh --lang zh-TW
 ```
 
 ```powershell
-& .\install.ps1 --lang zh-TW
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 --lang zh-TW
 ```
 
 遠端安裝（繁體中文範例；省略參數則使用簡體中文）：
@@ -53,7 +55,7 @@ bash uninstall.sh --lang zh-TW --purge
 
 ```powershell
 agy-zh --lang zh-TW start
-& .\uninstall.ps1 --lang zh-TW --purge
+powershell -NoProfile -ExecutionPolicy Bypass -File .\uninstall.ps1 --lang zh-TW --purge
 ```
 
 預設只解除安裝簡體中文。`--lang` 只移除指定語言；最後一種語言移除後才會清理共用執行檔。`--purge` 同時清理對應快取，不會移除其他語言入口。

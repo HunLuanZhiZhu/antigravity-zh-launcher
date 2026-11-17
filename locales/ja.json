@@ -298,7 +298,11 @@
     ". You can control this from your settings at any point.": "。この設定はいつでも変更できます。",
     "You can control this from your settings at any point.": "この設定はいつでも変更できます。",
     "Stay up to date.": "最新情報を受け取る。",
-    "Sign up for newsletters, tips and tricks, and other notifications about Antigravity.": "Antigravity に関するニュースレターやヒント、その他の通知を受け取ります。"
+    "Sign up for newsletters, tips and tricks, and other notifications about Antigravity.": "Antigravity に関するニュースレターやヒント、その他の通知を受け取ります。",
+    "Thought for": "{n}秒思考しました",
+    "Worked for": "{n}秒作業しました",
+    "Ran command": "コマンドを実行しました",
+    "Ran": "実行済み"
   },
   "greetings": [
     "{name}さん、今日は何を進めましょうか？",

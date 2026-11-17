@@ -298,7 +298,11 @@
     ". You can control this from your settings at any point.": "。你可以隨時在設定中調整此選項。",
     "You can control this from your settings at any point.": "你可以隨時在設定中調整此選項。",
     "Stay up to date.": "訂閱最新動態。",
-    "Sign up for newsletters, tips and tricks, and other notifications about Antigravity.": "訂閱關於 Antigravity 的電子報、實用技巧與其他通知。"
+    "Sign up for newsletters, tips and tricks, and other notifications about Antigravity.": "訂閱關於 Antigravity 的電子報、實用技巧與其他通知。",
+    "Thought for": "已思考 {n} 秒",
+    "Worked for": "已工作 {n} 秒",
+    "Ran command": "已執行指令",
+    "Ran": "已執行"
   },
   "greetings": [
     "你好，{name}，今天想完成什麼？",

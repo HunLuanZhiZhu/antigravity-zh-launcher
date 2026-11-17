@@ -298,7 +298,11 @@
     ". You can control this from your settings at any point.": ". Вы можете изменить это в настройках в любое время.",
     "You can control this from your settings at any point.": "Вы можете изменить это в настройках в любое время.",
     "Stay up to date.": "Будьте в курсе новостей.",
-    "Sign up for newsletters, tips and tricks, and other notifications about Antigravity.": "Подпишитесь на рассылку, советы и другие уведомления об Antigravity."
+    "Sign up for newsletters, tips and tricks, and other notifications about Antigravity.": "Подпишитесь на рассылку, советы и другие уведомления об Antigravity.",
+    "Thought for": "Думал {n} с",
+    "Worked for": "Работал {n} с",
+    "Ran command": "Команда выполнена",
+    "Ran": "Выполнено"
   },
   "greetings": [
     "Здравствуйте, {name}! Что сделаем сегодня?",

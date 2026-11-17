@@ -298,7 +298,11 @@
     ". You can control this from your settings at any point.": "。你可以随时在设置中更改此选项。",
     "You can control this from your settings at any point.": "你可以随时在设置中更改此选项。",
     "Stay up to date.": "订阅最新动态。",
-    "Sign up for newsletters, tips and tricks, and other notifications about Antigravity.": "订阅关于 Antigravity 的新闻通讯、实用技巧及其他通知。"
+    "Sign up for newsletters, tips and tricks, and other notifications about Antigravity.": "订阅关于 Antigravity 的新闻通讯、实用技巧及其他通知。",
+    "Thought for": "已思考 {n} 秒",
+    "Worked for": "已工作 {n} 秒",
+    "Ran command": "已运行命令",
+    "Ran": "已运行"
   },
   "greetings": [
     "你好，{name}，今天想完成什么？",

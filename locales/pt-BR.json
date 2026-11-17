@@ -298,7 +298,11 @@
     ". You can control this from your settings at any point.": ". Você pode controlar isso nas configurações a qualquer momento.",
     "You can control this from your settings at any point.": "Você pode controlar isso nas configurações a qualquer momento.",
     "Stay up to date.": "Fique por dentro.",
-    "Sign up for newsletters, tips and tricks, and other notifications about Antigravity.": "Inscreva-se para receber boletins, dicas e outras notificações sobre o Antigravity."
+    "Sign up for newsletters, tips and tricks, and other notifications about Antigravity.": "Inscreva-se para receber boletins, dicas e outras notificações sobre o Antigravity.",
+    "Thought for": "Pensou por {n} s",
+    "Worked for": "Trabalhou por {n} s",
+    "Ran command": "Comando executado",
+    "Ran": "Executado"
   },
   "greetings": [
     "Olá, {name}, o que vamos fazer hoje?",
