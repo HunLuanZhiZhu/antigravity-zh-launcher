@@ -4,8 +4,28 @@
 
 为 Antigravity 提供独立语言入口、界面翻译和 AI 语言规则。无参数安装仍为 **zh-CN / Antigravity 中文**，原有 `agy-zh` 命令、缓存与插件路径兼容。原版应用文件保持不变。
 
-
 ![Antigravity zh-CN UI](docs/assets/real-ui-zh.png)
+
+<details>
+<summary>更多语言实拍截图（繁體中文 / 日本語 / 한국어 / Español / Français / Deutsch / Русский / Português）</summary>
+
+| 日本語 (`ja`) | 한국어 (`ko`) |
+| --- | --- |
+| ![Antigravity 日本語 UI](docs/assets/real-ui-ja.png) | ![Antigravity 한국어 UI](docs/assets/real-ui-ko.png) |
+
+| 繁體中文 (`zh-TW`) | Español (`es`) |
+| --- | --- |
+| ![Antigravity 繁體中文 UI](docs/assets/real-ui-zh-tw.png) | ![Antigravity Español UI](docs/assets/real-ui-es.png) |
+
+| Français (`fr`) | Deutsch (`de`) |
+| --- | --- |
+| ![Antigravity Français UI](docs/assets/real-ui-fr.png) | ![Antigravity Deutsch UI](docs/assets/real-ui-de.png) |
+
+| Русский (`ru`) | Português (`pt-BR`) |
+| --- | --- |
+| ![Antigravity Русский UI](docs/assets/real-ui-ru.png) | ![Antigravity Português UI](docs/assets/real-ui-pt-br.png) |
+
+</details>
 
 ## 安装
 
@@ -28,7 +48,7 @@ bash install.sh --lang zh-CN
 ```
 
 ```powershell
-& .\install.ps1 --lang zh-CN
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 --lang zh-CN
 ```
 
 远程安装（示例：日语；省略 `--lang ja` 即为简体中文）：
@@ -66,7 +86,7 @@ bash uninstall.sh --lang zh-CN --purge
 
 ```powershell
 agy-zh --lang zh-CN start
-& .\uninstall.ps1 --lang zh-CN --purge
+powershell -NoProfile -ExecutionPolicy Bypass -File .\uninstall.ps1 --lang zh-CN --purge
 ```
 
 卸载默认只移除简体中文；`--lang` 只移除指定语言。最后一种语言卸载后清理共享运行时。`--purge` 同时清理对应缓存；不会删除其他语言入口。
