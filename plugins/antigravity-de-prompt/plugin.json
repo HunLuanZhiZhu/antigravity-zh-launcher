@@ -1,0 +1,15 @@
+{
+  "name": "antigravity-de-prompt",
+  "displayName": "Deutsch — Antigravity",
+  "description": "Verwende natürliches Deutsch für Pläne, darstellbare Zusammenfassungen von Überlegungen, Werkzeugzusammenfassungen, Dokumente und abschließende Antworten. Beachte ausdrückliche Wünsche des Benutzers nach einer anderen Sprache. Behalte Codebezeichner, API-Namen, Befehle, Dateipfade, ursprüngliche Fehlermeldungen und notwendige Fachbegriffe bei. Interne Gedankengänge müssen nicht offengelegt werden.",
+  "version": "1.1.0",
+  "license": "MIT",
+  "logo": "assets/logo.svg",
+  "author": {
+    "name": "guuguo",
+    "url": "https://github.com/guuguo"
+  },
+  "homepage": "https://github.com/guuguo/antigravity-zh-launcher",
+  "repository": "https://github.com/guuguo/antigravity-zh-launcher",
+  "disabled": true
+}

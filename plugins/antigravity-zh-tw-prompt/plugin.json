@@ -1,0 +1,15 @@
+{
+  "name": "antigravity-zh-tw-prompt",
+  "displayName": "繁體中文 — Antigravity",
+  "description": "請使用繁體中文（臺灣用語）撰寫計畫、可呈現的思考說明、工具步驟摘要、文件成果與最終回覆。除非使用者明確要求其他語言，否則持續使用繁體中文。保留程式識別字、API 名稱、指令、檔案路徑、原始錯誤訊息與必要的技術術語。不必揭露內部思維鏈。",
+  "version": "1.1.0",
+  "license": "MIT",
+  "logo": "assets/logo.svg",
+  "author": {
+    "name": "guuguo",
+    "url": "https://github.com/guuguo"
+  },
+  "homepage": "https://github.com/guuguo/antigravity-zh-launcher",
+  "repository": "https://github.com/guuguo/antigravity-zh-launcher",
+  "disabled": true
+}

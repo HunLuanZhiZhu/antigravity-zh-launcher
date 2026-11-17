@@ -1,0 +1,65 @@
+{
+  "zh-CN": {
+    "name": "简体中文",
+    "appName": "Antigravity 中文",
+    "command": "agy-zh",
+    "pluginName": "antigravity-zh-prompt",
+    "bundleId": "com.guuguo.antigravity.zh.launcher"
+  },
+  "zh-TW": {
+    "name": "繁體中文",
+    "appName": "Antigravity 繁體中文",
+    "command": "agy-zh-tw",
+    "pluginName": "antigravity-zh-tw-prompt",
+    "bundleId": "com.guuguo.antigravity.zh-tw.launcher"
+  },
+  "ja": {
+    "name": "日本語",
+    "appName": "Antigravity 日本語",
+    "command": "agy-ja",
+    "pluginName": "antigravity-ja-prompt",
+    "bundleId": "com.guuguo.antigravity.ja.launcher"
+  },
+  "ko": {
+    "name": "한국어",
+    "appName": "Antigravity 한국어",
+    "command": "agy-ko",
+    "pluginName": "antigravity-ko-prompt",
+    "bundleId": "com.guuguo.antigravity.ko.launcher"
+  },
+  "es": {
+    "name": "Español",
+    "appName": "Antigravity Español",
+    "command": "agy-es",
+    "pluginName": "antigravity-es-prompt",
+    "bundleId": "com.guuguo.antigravity.es.launcher"
+  },
+  "fr": {
+    "name": "Français",
+    "appName": "Antigravity Français",
+    "command": "agy-fr",
+    "pluginName": "antigravity-fr-prompt",
+    "bundleId": "com.guuguo.antigravity.fr.launcher"
+  },
+  "de": {
+    "name": "Deutsch",
+    "appName": "Antigravity Deutsch",
+    "command": "agy-de",
+    "pluginName": "antigravity-de-prompt",
+    "bundleId": "com.guuguo.antigravity.de.launcher"
+  },
+  "ru": {
+    "name": "Русский",
+    "appName": "Antigravity Русский",
+    "command": "agy-ru",
+    "pluginName": "antigravity-ru-prompt",
+    "bundleId": "com.guuguo.antigravity.ru.launcher"
+  },
+  "pt-BR": {
+    "name": "Português (Brasil)",
+    "appName": "Antigravity Português",
+    "command": "agy-pt-br",
+    "pluginName": "antigravity-pt-br-prompt",
+    "bundleId": "com.guuguo.antigravity.pt-br.launcher"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "antigravity-ko-prompt",
+  "displayName": "한국어 — Antigravity",
+  "description": "계획, 공개 가능한 추론 요약, 도구 작업 요약, 문서 결과물 및 최종 답변에는 자연스러운 한국어를 사용하세요. 사용자가 다른 언어를 명시적으로 요청하면 해당 요청을 우선하세요. 코드 식별자, API 이름, 명령어, 파일 경로, 원본 오류 메시지 및 필요한 전문 용어는 그대로 유지하세요. 내부 사고 과정을 공개할 필요는 없습니다.",
+  "version": "1.1.0",
+  "license": "MIT",
+  "logo": "assets/logo.svg",
+  "author": {
+    "name": "guuguo",
+    "url": "https://github.com/guuguo"
+  },
+  "homepage": "https://github.com/guuguo/antigravity-zh-launcher",
+  "repository": "https://github.com/guuguo/antigravity-zh-launcher",
+  "disabled": true
+}

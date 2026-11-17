@@ -1,22 +1,47 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Antigravity 中文双入口编排器 (macOS)
+# Antigravity 多语言独立入口编排器 (macOS)
 # 自研零二进制本地 CDP 注入器 + 中文思考提示词插件联动控制。
 # 仅复用纯文本汉化词库脚本（antigravity-hans-overlay.js），退出中文入口后自动还原默认状态。
 
-PLUGIN_NAME="antigravity-zh-prompt"
+# --lang is accepted before or after the subcommand. No flag means zh-CN.
+LANG_CODE="zh-CN"
+ARGS=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --lang)
+      [[ $# -ge 2 && -n "$2" ]] || { echo "[错误] --lang 需要语言代码" >&2; exit 1; }
+      LANG_CODE="$2"; shift 2 ;;
+    --lang=*) LANG_CODE="${1#*=}"; shift ;;
+    *) ARGS+=("$1"); shift ;;
+  esac
+done
+SELF_DIR="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -f "$SELF_DIR/../locales/index.json" ]]; then
+  ASSET_ROOT="$(cd "$SELF_DIR/.." && pwd)"
+else
+  ASSET_ROOT="$SELF_DIR/agy-i18n"
+fi
+META="$(python3 "$ASSET_ROOT/lib/locale.py" metadata "$LANG_CODE")" || exit 1
+IFS=$'\t' read -r APP_NAME COMMAND_NAME PLUGIN_NAME BUNDLE_ID <<< "$META"
 CONFIG_DIR="${GEMINI_CONFIG_DIR:-$HOME/.gemini/config}"
 CONFIG_FILE="$CONFIG_DIR/config.json"
 PLUGIN_DIR="$CONFIG_DIR/plugins/$PLUGIN_NAME"
 DATA_DIR="${AGY_ZH_DATA_DIR:-$HOME/.local/bin}"
 OVERLAY_URL="${AGY_ZH_OVERLAY_URL:-https://raw.githubusercontent.com/yuexps/Antigravity-Hans/main/antigravity-hans-overlay.js}"
 BASE_OVERLAY_FILE="$DATA_DIR/antigravity-hans-overlay.base.js"
-OVERLAY_FILE="$DATA_DIR/antigravity-hans-overlay.js"
 LOG_DIR="$HOME/Library/Logs"
-LOG_FILE="$LOG_DIR/agy-zh.log"
-PID_FILE="$LOG_DIR/agy-zh-cdp.pid"
-OVERLAY_VERSION="agy-zh-v5"
+if [[ "$LANG_CODE" == "zh-CN" ]]; then
+  OVERLAY_FILE="$DATA_DIR/antigravity-hans-overlay.js"
+  LOG_FILE="$LOG_DIR/agy-zh.log"
+  PID_FILE="$LOG_DIR/agy-zh-cdp.pid"
+else
+  OVERLAY_FILE="$DATA_DIR/antigravity-$LANG_CODE-overlay.js"
+  LOG_FILE="$LOG_DIR/$COMMAND_NAME.log"
+  PID_FILE="$LOG_DIR/$COMMAND_NAME-cdp.pid"
+fi
+export AGY_LANGUAGE_NAME="$APP_NAME"
 
 resolve_self_path() {
   local src="${BASH_SOURCE[0]}"
@@ -46,15 +71,15 @@ find_original_app() {
 
 find_shortcut_app() {
   if [[ -n "${AGY_ZH_APPS_DIR:-}" ]]; then
-    if [[ -d "$AGY_ZH_APPS_DIR/Antigravity 中文.app" ]]; then
-      printf '%s\n' "$AGY_ZH_APPS_DIR/Antigravity 中文.app"
+    if [[ -d "$AGY_ZH_APPS_DIR/$APP_NAME.app" ]]; then
+      printf '%s\n' "$AGY_ZH_APPS_DIR/$APP_NAME.app"
       return 0
     fi
     return 1
   fi
   local candidates=(
-    "/Applications/Antigravity 中文.app"
-    "$HOME/Applications/Antigravity 中文.app"
+    "/Applications/$APP_NAME.app"
+    "$HOME/Applications/$APP_NAME.app"
   )
   local app
   for app in "${candidates[@]}"; do
@@ -68,13 +93,13 @@ find_shortcut_app() {
 
 set_plugin_enabled() {
   local enabled_str="$1"
-  python3 - "$CONFIG_FILE" "$PLUGIN_NAME" "$enabled_str" <<'PY'
+  python3 - "$CONFIG_FILE" "$PLUGIN_NAME" "$enabled_str" "$ASSET_ROOT/locales/index.json" <<'PY'
 import json
 import os
 import sys
 import tempfile
 
-config_file, plugin_name, enabled_str = sys.argv[1], sys.argv[2], sys.argv[3]
+config_file, plugin_name, enabled_str, index_file = sys.argv[1:5]
 enabled = enabled_str.lower() == "true"
 config_dir = os.path.dirname(config_file)
 os.makedirs(config_dir, exist_ok=True)
@@ -96,6 +121,13 @@ plugins = data.get("plugins")
 if not isinstance(plugins, dict):
     plugins = {}
 data["plugins"] = plugins
+
+if enabled:
+    with open(index_file, encoding="utf-8") as f:
+        names = [m["pluginName"] for m in json.load(f).values()]
+    for name in names:
+        if name != plugin_name and isinstance(plugins.get(name), dict):
+            plugins[name]["enabled"] = False
 
 entry = plugins.get(plugin_name)
 if not isinstance(entry, dict):
@@ -155,47 +187,17 @@ PY
 }
 
 list_active_watcher_pids() {
-  python3 - "$PID_FILE" <<'PY'
-import os
+  python3 - "$PID_FILE" "$OVERLAY_FILE" <<'PY'
 import subprocess
 import sys
-
-pid_file = sys.argv[1]
-found = set()
-
-if os.path.isfile(pid_file):
-    try:
-        with open(pid_file, "r", encoding="utf-8") as f:
-            pid = int(f.read().strip())
-        os.kill(pid, 0)
-        out = subprocess.check_output(["ps", "-p", str(pid), "-o", "args="], text=True, stderr=subprocess.DEVNULL)
-        if "AGY_ZH_WATCHER_MARKER" in out or "python" in out:
-            found.add(pid)
-    except Exception:
-        pass
-
 try:
-    out = subprocess.check_output(["ps", "-axo", "pid=,args="], text=True, stderr=subprocess.DEVNULL)
-    for line in out.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        parts = line.split(None, 1)
-        if len(parts) < 2:
-            continue
-        try:
-            pid = int(parts[0])
-        except ValueError:
-            continue
-        if pid == os.getpid():
-            continue
-        if "AGY_ZH_WATCHER_MARKER=1" in parts[1]:
-            found.add(pid)
-except Exception:
+    with open(sys.argv[1]) as f:
+        pid = int(f.read().strip())
+    args = subprocess.check_output(["ps", "-p", str(pid), "-o", "args="], text=True, stderr=subprocess.DEVNULL)
+    if "python" in args and sys.argv[2] in args:
+        print(pid)
+except (OSError, ValueError, subprocess.CalledProcessError):
     pass
-
-for pid in sorted(found):
-    print(pid)
 PY
 }
 
@@ -229,456 +231,48 @@ ensure_base_overlay() {
 
 ensure_enhanced_overlay() {
   local force="${1:-false}"
-  ensure_base_overlay "$force"
+  mkdir -p "$DATA_DIR"
+  if [[ "$LANG_CODE" == "zh-CN" ]]; then
+    ensure_base_overlay "$force"
+  fi
+  python3 "$ASSET_ROOT/lib/locale.py" build "$LANG_CODE" "$OVERLAY_FILE" "$BASE_OVERLAY_FILE" "$force"
+}
 
-  python3 - "$BASE_OVERLAY_FILE" "$OVERLAY_FILE" "$OVERLAY_VERSION" "$force" <<'PY'
-import hashlib
-import os
-import sys
-import tempfile
-
-base_path, overlay_path, overlay_ver, force_flag = sys.argv[1:5]
-force = force_flag == "true"
-
-with open(base_path, "r", encoding="utf-8") as f:
-    raw_js = f.read()
-
-base_sha256 = hashlib.sha256(raw_js.encode("utf-8")).hexdigest()[:16]
-header_comment = f"// antigravity-zh-launcher overlay: {overlay_ver}; base_sha256={base_sha256}"
-
-if not force and os.path.isfile(overlay_path):
+# Antigravity has one shared desktop session. Stop previous language watchers
+# before selecting one global prompt language; never run competing injectors.
+stop_language_watchers() {
+  python3 - "$LOG_DIR" "$ASSET_ROOT/locales/index.json" <<'PY'
+import json, os, pathlib, signal, subprocess, sys, time
+log_dir = pathlib.Path(sys.argv[1])
+index = json.loads(pathlib.Path(sys.argv[2]).read_text())
+pids = []
+for code, meta in index.items():
+    path = log_dir / (meta["command"] + "-cdp.pid")
     try:
-        with open(overlay_path, "r", encoding="utf-8") as ef:
-            first_line = ef.readline().rstrip("\r\n")
-        if first_line == header_comment:
-            sys.exit(0)
-    except Exception:
+        pid = int(path.read_text().strip())
+        args = subprocess.check_output(["ps", "-p", str(pid), "-o", "args="], text=True, stderr=subprocess.DEVNULL)
+        overlay = "antigravity-hans-overlay.js" if code == "zh-CN" else "antigravity-" + code + "-overlay.js"
+        if "python" in args and overlay in args:
+            os.kill(pid, signal.SIGTERM)
+            pids.append(pid)
+    except (OSError, ValueError, subprocess.CalledProcessError):
         pass
-
-js = raw_js.replace("\r\n", "\n")
-
-
-class AnchorError(RuntimeError):
-    pass
-
-
-def replace_once(text, target, replacement, label):
-    count = text.count(target)
-    if count != 1:
-        raise AnchorError(f"锚点匹配异常 ({label}): count={count}")
-    return text.replace(target, replacement, 1)
-
-
-try:
-    # 1. 补全输入框提示语、运行链路动作词及常见变体词条
-    phrases_anchor = "  const phrases = new Map(["
-    phrases_addon = """  const phrases = new Map([
-    ["Ask anything, @ to mention, / for actions", "想问什么都可以，@ 引用，/ 执行动作"],
-    ["Ask anything, @ to mention", "想问什么都可以，@ 引用"],
-    ["Message subagent, @ to mention, / for actions", "向子智能体发消息，@ 引用，/ 执行动作"],
-    ["Message subagent, @ to mention", "向子智能体发消息，@ 引用"],
-    ["Listening. Ask anything.", "正在聆听，想问什么都可以。"],
-    ["Analyzed", "已分析"],
-    ["Analyzing", "正在分析"],
-    ["Editing", "正在编辑"],
-    ["Creating", "正在创建"],
-    ["Created", "已创建"],
-    ["Updating", "正在更新"],
-    ["Updated", "已更新"],
-    ["Deleting", "正在删除"],
-    ["Reading", "正在读取"],
-    ["Writing", "正在写入"],
-    ["Wrote", "已写入"],
-    ["Listing", "正在列出"],
-    ["Listed", "已列出"],
-    ["Checking", "正在检查"],
-    ["Checked", "已检查"],
-    ["Viewing", "正在查看"],
-    ["Viewed", "已查看"],
-    ["Exploring", "正在探索"],
-    ["Invoking", "正在调用"],
-    ["Invoked", "已调用"],
-    ["Started", "已开始"],
-    ["Starting", "正在启动"],
-    ["Task Log", "任务日志"],
-    ["Finished", "已完成"],
-    ["finished", "已完成"],"""
-    js = replace_once(js, phrases_anchor, phrases_addon, "phrases")
-
-    # 2. 补充简短相对时间及单节点工具步骤行规则（8m ago / Editing foo.js / ... finished）
-    dyn_anchor = "  const dynamicPatterns = ["
-    dyn_addon = """  const dynamicPatterns = [
-    [/^(\\d+)\\s*s\\s+ago$/i, '$1秒前'],
-    [/^(\\d+)\\s*m\\s+ago$/i, '$1分钟前'],
-    [/^(\\d+)\\s*h\\s+ago$/i, '$1小时前'],
-    [/^(\\d+)\\s*d\\s+ago$/i, '$1天前'],
-    [/^(\\d+)\\s*w\\s+ago$/i, '$1周前'],
-    [/^(\\d+)\\s*mo\\s+ago$/i, '$1个月前'],
-    [/^(\\d+)\\s*y\\s+ago$/i, '$1年前'],
-    [/^(?:Just now|now)$/i, '刚刚'],
-    [/^(Analyzed|Analyzing|Editing|Edited|Creating|Created|Updating|Updated|Deleting|Deleted|Reading|Writing|Wrote|Listing|Listed|Checking|Checked|Viewing|Viewed)\\s+(Task\\s+Logs?|[^\\r\\n]+?(?:\\.[A-Za-z0-9]{1,8}(?:\\s+#L\\d+(?:-\\d+)?)?|\\s+#L\\d+(?:-\\d+)?)|[^\\s\\r\\n]+)$/i, (_m, verb, target) => {
-      const verbMap = {
-        analyzed: '已分析', analyzing: '正在分析', editing: '正在编辑', edited: '已编辑',
-        creating: '正在创建', created: '已创建', updating: '正在更新', updated: '已更新',
-        deleting: '正在删除', deleted: '已删除', reading: '正在读取', writing: '正在写入',
-        wrote: '已写入', listing: '正在列出', listed: '已列出', checking: '正在检查',
-        checked: '已检查', viewing: '正在查看', viewed: '已查看',
-      };
-      const zhVerb = verbMap[verb.toLowerCase()] || verb;
-      const zhTarget = /^Task\\s+Logs?$/i.test(target) ? '任务日志' : target;
-      return `${zhVerb} ${zhTarget}`;
-    }],
-    [/^([\\s\\S]{3,}?)(?<!\\b(?:as|is|are|was|were|be|been|not|never|when|until|before|after|get|got|almost|completely|nearly|just|already))\\s+finished$/i, '$1 已完成'],"""
-    js = replace_once(js, dyn_anchor, dyn_addon, "dynamicPatterns_time")
-
-    # 2b. 对齐已有长英文相对时间规则为紧凑格式（8分钟前）
-    ago_anchor = """    [/(\\d+)\\s*minutes?\\s*ago\\b/gi, '$1 分钟前'],
-    [/(\\d+)\\s*hours?\\s*ago\\b/gi, '$1 小时前'],
-    [/(\\d+)\\s*days?\\s*ago\\b/gi, '$1 天前'],
-    [/(\\d+)\\s*weeks?\\s*ago\\b/gi, '$1 周前'],
-    [/(\\d+)\\s*months?\\s*ago\\b/gi, '$1 个月前'],
-    [/(\\d+)\\s*years?\\s*ago\\b/gi, '$1 年前'],"""
-    ago_compact = """    [/(\\d+)\\s*minutes?\\s*ago\\b/gi, '$1分钟前'],
-    [/(\\d+)\\s*hours?\\s*ago\\b/gi, '$1小时前'],
-    [/(\\d+)\\s*days?\\s*ago\\b/gi, '$1天前'],
-    [/(\\d+)\\s*weeks?\\s*ago\\b/gi, '$1周前'],
-    [/(\\d+)\\s*months?\\s*ago\\b/gi, '$1个月前'],
-    [/(\\d+)\\s*years?\\s*ago\\b/gi, '$1年前'],"""
-    js = replace_once(js, ago_anchor, ago_compact, "existing_ago")
-
-    # 2c. 扩展首页全量 6 种轮换动态欢迎语（Hey guo, what should we build today? 等）
-    greeting_anchor = """    const greeting = trimmed.match(/^Hi ([\\s\\S]+?), what can we get done today\\?$/);
-    if (greeting) return value.replace(trimmed, () => `你好，${greeting[1]}，今天想完成什么？`);
-    if (/^你好，[\\s\\S]+，今天想完成什么？$/.test(trimmed)) return value;"""
-    greeting_patched = """    const greeting = trimmed.match(/^Hi ([\\s\\S]+?), what can we get done today\\?$/);
-    if (greeting) return value.replace(trimmed, () => `你好，${greeting[1]}，今天想完成什么？`);
-    if (trimmed === 'Hey there, what should we build today?') return value.replace(trimmed, '你好，今天想构建什么？');
-    const heyNamed = trimmed.match(/^Hey ([\\s\\S]+?), what should we build today\\?$/);
-    if (heyNamed && heyNamed[1].toLowerCase() !== 'there') return value.replace(trimmed, () => `你好，${heyNamed[1]}，今天想构建什么？`);
-    if (trimmed === 'Welcome back. Where should we pick up?') return value.replace(trimmed, '欢迎回来，我们从哪里继续？');
-    const welcomeNamed = trimmed.match(/^Welcome back, ([\\s\\S]+?)\\. Where should we pick up\\?$/);
-    if (welcomeNamed) return value.replace(trimmed, () => `欢迎回来，${welcomeNamed[1]}，我们从哪里继续？`);
-    if (trimmed === "Good to see you. What's next?") return value.replace(trimmed, '很高兴见到你，接下来做什么？');
-    const goodSeeNamed = trimmed.match(/^Good to see you, ([\\s\\S]+?)\\. What's next\\?$/);
-    if (goodSeeNamed) return value.replace(trimmed, () => `很高兴见到你，${goodSeeNamed[1]}，接下来做什么？`);
-    if (/^(?:你好(?:，[\\s\\S]+)?，今天想(?:完成|构建)什么？|欢迎回来(?:，[\\s\\S]+)?，我们从哪里继续？|很高兴见到你(?:，[\\s\\S]+)?，接下来做什么？)$/.test(trimmed)) return value;"""
-    js = replace_once(js, greeting_anchor, greeting_patched, "home_greetings")
-
-    # 3. 修复 [data-cascade-id] 误判主对话视图，并放行消息时间戳与首页欢迎语容器
-    skip_anchor = "const historyItem = element.closest('[data-testid=\"conversation-row-sidebar\"], [data-cascade-id], "
-    skip_fixed = "const historyItem = element.closest('[data-testid^=\"conversation-row-\"], [data-testid=\"side-question-row\"], [data-testid=\"subagent-node\"], "
-    js = replace_once(js, skip_anchor, skip_fixed, "historyItem_selector")
-
-    user_skip_anchor = """    // 跳过用户输入
-    if (element.closest('[data-testid="user-input-step"], [aria-label="User message"], [aria-label="用户消息"]')) {
-      return true;
-    }"""
-    user_skip_patched = """    // 跳过用户输入气泡正文（保留 user-message-actions 时间戳与操作按钮）
-    if (element.closest('[data-testid="user-message-bubble"], [data-testid="user-message-content"], .agy-user-bubble, .agy-user-bubble-frame')) {
-      return true;
-    }"""
-    js = replace_once(js, user_skip_anchor, user_skip_patched, "user_input_skip")
-
-    agent_resp_anchor = """    // 跳过回复正文（保留控件、折叠步骤栏、变更概览与系统提示卡片）
-    const agentResponse = element.closest('[aria-label="Agent response"], [aria-label="智能体回复"]');
-    if (agentResponse) {
-      if (node.nodeType === Node.ELEMENT_NODE && element === agentResponse) return false;
-      const isInteractive = element.closest('button, [role="button"], [class*="action"], [class*="button-container"], [data-testid="cleared-step-notice"], .files-changed-header');"""
-    agent_resp_patched = """    const userStep = element.closest('[data-testid="user-input-step"], [aria-label="User message"], [aria-label="用户消息"]');
-    if (userStep) {
-      if (node.nodeType === Node.ELEMENT_NODE && element === userStep) return false;
-      if (!element.closest('[data-testid="user-message-actions"], [data-screenshot-volatile], button, [role="button"]')) return true;
-    }
-
-    // 跳过回复正文（保留控件、折叠步骤栏、消息操作时间栏、变更概览与系统提示卡片）
-    const agentResponse = element.closest('[aria-label="Agent response"], [aria-label="智能体回复"]');
-    if (agentResponse) {
-      if (node.nodeType === Node.ELEMENT_NODE && element === agentResponse) return false;
-      const isInteractive = element.closest('button, [role="button"], [class*="action"], [class*="button-container"], [data-testid="cascade-system-message-toolbar"], [data-screenshot-volatile], [data-testid="cleared-step-notice"], .files-changed-header');"""
-    js = replace_once(js, agent_resp_anchor, agent_resp_patched, "agent_resp_skip")
-
-    container_anchor = "    '.antigravity-welcome-container',"
-    container_patched = """    '.antigravity-welcome-container',
-    '[data-testid="home-greeting"]',"""
-    js = replace_once(js, container_anchor, container_patched, "container_sel")
-
-    # 4. 在 cleanup 中清理标题复检定时器
-    cleanup_anchor = """    flushScheduler?.cancel();
-    restoreIdeNlsMessages();
-    removePreferenceSync?.();"""
-    cleanup_patched = """    flushScheduler?.cancel();
-    clearTitleTimers();
-    restoreIdeNlsMessages();
-    removePreferenceSync?.();"""
-    js = replace_once(js, cleanup_anchor, cleanup_patched, "cleanup_timers")
-
-    # 5. 在 restoreOriginals 末尾还原 document.title
-    restore_anchor = """  function restoreOriginals() {
-    const walker = document.createTreeWalker(document, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
-    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      restoreTrackedNode(node);
-    }
-  }"""
-    restore_patched = """  function restoreOriginals() {
-    const walker = document.createTreeWalker(document, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
-    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      restoreTrackedNode(node);
-    }
-    restoreDocTitle();
-  }"""
-    js = replace_once(js, restore_anchor, restore_patched, "restoreOriginals")
-
-    # 6. 注入自动英文会话标题汉化与侧边栏同步模块
-    title_module = r"""  const TITLE_MAP_KEY = 'antigravityHansAutoTitleMap';
-  const CJK_CHAR_RE = /[\u3400-\u9fff\uf900-\ufaff\u3040-\u30ff\uac00-\ud7af]/;
-  let originalDocTitle = null;
-  let titleResyncTimers = [];
-
-  function clearTitleTimers() {
-    for (const tid of titleResyncTimers) clearTimeout(tid);
-    titleResyncTimers = [];
-  }
-
-  function restoreDocTitle() {
-    if (originalDocTitle !== null && typeof document !== 'undefined') {
-      document.title = originalDocTitle;
-      originalDocTitle = null;
-    }
-  }
-
-  function loadAutoTitleMap() {
-    try {
-      const raw = loadPref(TITLE_MAP_KEY);
-      if (!raw) return {};
-      const parsed = JSON.parse(raw);
-      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
-    } catch (_e) {
-      return {};
-    }
-  }
-
-  function saveAutoTitleMap(map) {
-    try {
-      const entries = Object.entries(map);
-      const trimmed = entries.length > 200 ? Object.fromEntries(entries.slice(-200)) : map;
-      savePref(TITLE_MAP_KEY, JSON.stringify(trimmed));
-    } catch (_e) { /* ignore */ }
-  }
-
-  function isAutoEnglishTitle(raw) {
-    const s = (raw || '').trim();
-    if (s.length < 4 || s.length > 80) return false;
-    if (CJK_CHAR_RE.test(s)) return false;
-    if (/[/\\]|https?:|^[~.]/i.test(s) || /\.[a-z0-9]{1,5}$/i.test(s)) return false;
-    if (!/^[A-Za-z0-9][A-Za-z0-9\s:&+\-/'"(),.?]{2,}$/.test(s)) return false;
-    const words = s.split(/\s+/).filter(Boolean);
-    const alphaWords = words.filter((w) => /[A-Za-z]/.test(w));
-    if (alphaWords.length < 2) return false;
-    const titled = alphaWords.filter((w) => /^[A-Z]/.test(w) || /^(?:of|to|in|on|at|for|by|with|and|or|vs|the|a|an)$/i.test(w));
-    return titled.length / alphaWords.length >= 0.7 && /^[A-Z0-9]/.test(alphaWords[0]);
-  }
-
-  function extractFirstChineseUserPrompt(convoView) {
-    const step = convoView.querySelector('[data-testid="user-input-step"]') ||
-      convoView.querySelector('[aria-label="User message"], [aria-label="用户消息"]');
-    if (!step) return '';
-    const skipNodes = new Set(step.querySelectorAll('button, [role="button"], [data-testid="queued-decorators"], [data-testid="user-message-actions"], [data-screenshot-volatile], time, svg'));
-    const parts = [];
-    const walker = document.createTreeWalker(step, NodeFilter.SHOW_TEXT);
-    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      let cur = node.parentElement;
-      let ignored = false;
-      while (cur && cur !== step) {
-        if (skipNodes.has(cur)) {
-          ignored = true;
-          break;
-        }
-        cur = cur.parentElement;
-      }
-      if (ignored) continue;
-      const t = (node.nodeValue || '').trim();
-      if (t && !/^\d+\s*(?:s|m|h|d)?\s*ago$/i.test(t) && t !== 'You') parts.push(t);
-    }
-    const text = parts.join(' ').replace(/\s+/g, ' ').trim();
-    const hanMatches = text.match(/[\u4e00-\u9fff]/g);
-    return hanMatches && hanMatches.length >= 2 ? text : '';
-  }
-
-  function trimDirectiveTail(clauses) {
-    const tailRe = /^(?:给个?.*例子|举个?例子|附带?例子|简短说明|简明回答|说清.*|两三句话.*|用.*回答|请简述|谢谢|感谢).*$/;
-    const filtered = clauses.filter((c, i) => !(i > 0 && i === clauses.length - 1 && tailRe.test(c)));
-    return filtered.length > 0 ? filtered : clauses;
-  }
-
-  function deriveZhTitleFromPrompt(promptText) {
-    const clean = (promptText || '').replace(/\s+/g, ' ').trim();
-    const sentences = clean.split(/[。！？!?\n；;]+/).map((s) => s.trim()).filter(Boolean);
-    let first = sentences.find((s) => (s.match(/[\u4e00-\u9fff]/g) || []).length >= 2) || '';
-    if (!first) return '';
-
-    const prefixRe = /^(?:你好|您好|请问|麻烦(?:你|您)?|请(?:帮我)?|帮我|能不能|可以(?:帮我)?|能否|顺便|我想(?:问一下|知道|了解)?|想问(?:一下)?|用[一二三四五六七八九十两几\d]+个?[句字段话]+(?:来讲|来说|说|说明|解释|概括)?|简短地?|简单地?|通俗地?|详细地?|快速地?)[，,\s]*/;
-    const verbRe = /^(?:讲一讲|讲讲|说一说|说说|解释一下|解释下|解释|介绍一下|介绍下|介绍|聊一聊|聊聊|告诉我|回答一下|回答|总结一下|总结|分析一下|分析|给个|写一下|写个)[，,\s]*/;
-    for (let i = 0; i < 4; i++) {
-      const next = first.replace(prefixRe, '').trim();
-      if (next === first) break;
-      if ((next.match(/[\u4e00-\u9fff]/g) || []).length >= 2) first = next;
-    }
-    const afterVerb = first.replace(verbRe, '').trim();
-    if ((afterVerb.match(/[\u4e00-\u9fff]/g) || []).length >= 2) first = afterVerb;
-    first = first.replace(/[，,：:\s]+$/, '');
-    if (first.length <= 18) return first;
-
-    let clauses = first.split(/[，,]+/).map((c) => c.trim()).filter(Boolean);
-    clauses = trimDirectiveTail(clauses);
-    const joined = clauses.join('，');
-    if (joined.length <= 18) return joined;
-
-    const focusRe = /[几多少怎为何哪谁吗]/;
-    const focusClause = clauses.find((c, idx) => idx > 0 && focusRe.test(c) && c.length >= 6 && c.length <= 18);
-    if (focusClause) return focusClause;
-    if (clauses[0] && clauses[0].length >= 6 && clauses[0].length <= 18) return clauses[0];
-
-    let candidate = joined.slice(0, 17).replace(/[，,、\s]+$/, '');
-    return candidate ? candidate + '…' : '';
-  }
-
-  function findFirstVisibleTextNode(root) {
-    if (!root) return null;
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      if (node.parentElement?.closest?.('svg, input, textarea, [data-agy-hans-ui]')) continue;
-      if ((node.nodeValue || '').trim()) return node;
-    }
-    return null;
-  }
-
-  function scheduleTitleResync() {
-    if (cancelled || lang !== 'zh' || titleResyncTimers.length > 0) return;
-    titleResyncTimers.push(setTimeout(() => {
-      if (!cancelled && lang === 'zh') syncChineseConversationTitles(true);
-    }, 1200));
-    titleResyncTimers.push(setTimeout(() => {
-      titleResyncTimers = [];
-      if (!cancelled && lang === 'zh') syncChineseConversationTitles(true);
-    }, 3200));
-  }
-
-  function syncChineseConversationTitles(fromTimer = false) {
-    if (cancelled || lang !== 'zh' || typeof document === 'undefined') return;
-    const titleMap = loadAutoTitleMap();
-    let mapChanged = false;
-
-    const convoView = document.querySelector('[data-testid="conversation-view"], [data-testid="side-question-tab-conversation"]');
-    const promptText = convoView ? extractFirstChineseUserPrompt(convoView) : '';
-    const segments = Array.from(document.querySelectorAll('[data-testid="breadcrumb-segment"]'));
-
-    if (convoView && segments.length > 0) {
-      const titleSeg = segments[segments.length - 1];
-      if (!titleSeg.querySelector('input, textarea') &&
-          (titleSeg.hasAttribute('data-tooltip-id') || segments.length >= 2 || promptText)) {
-        const textNode = findFirstVisibleTextNode(titleSeg);
-        if (textNode) {
-          const tracked = originals.texts.get(textNode);
-          const orig = (tracked ? tracked.orig : (textNode.nodeValue || '')).trim();
-          if (isAutoEnglishTitle(orig)) {
-            let zhTitle = titleMap[orig];
-            if (!zhTitle && promptText) {
-              zhTitle = deriveZhTitleFromPrompt(promptText);
-              if (zhTitle) {
-                titleMap[orig] = zhTitle;
-                mapChanged = true;
-              }
-            }
-            if (zhTitle) {
-              if (textNode.nodeValue !== zhTitle) writeText(textNode, zhTitle);
-              textNode.__zh_patched = true;
-              if (document.title && document.title.includes(orig)) {
-                if (originalDocTitle === null) originalDocTitle = document.title;
-                const nextTitle = originalDocTitle.includes(orig)
-                  ? originalDocTitle.replace(orig, () => zhTitle)
-                  : document.title.replace(orig, () => zhTitle);
-                if (document.title !== nextTitle) document.title = nextTitle;
-              }
-            }
-          }
-        }
-      }
-    }
-
-    if (!fromTimer && promptText) {
-      const lastSeg = segments[segments.length - 1];
-      const curTitleNode = lastSeg ? findFirstVisibleTextNode(lastSeg) : null;
-      const curVal = curTitleNode ? (curTitleNode.nodeValue || '').trim() : '';
-      if (!curVal || !CJK_CHAR_RE.test(curVal)) scheduleTitleResync();
-    }
-
-    const rowNodes = document.querySelectorAll('[data-testid^="conversation-row-"], [data-testid="side-question-row"]');
-    for (const row of rowNodes) {
-      const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
-      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-        if (node.parentElement?.closest?.('svg, button')) continue;
-        const tracked = originals.texts.get(node);
-        const raw = tracked ? tracked.orig : (node.nodeValue || '');
-        const trimmed = raw.trim();
-        const mapped = trimmed ? titleMap[trimmed] : '';
-        if (mapped) {
-          const nextVal = raw.replace(trimmed, () => mapped);
-          if (node.nodeValue !== nextVal) writeText(node, nextVal);
-          node.__zh_patched = true;
-        }
-      }
-    }
-
-    if (mapChanged) saveAutoTitleMap(titleMap);
-  }
-
-  function applyChinese(resetMarks) {"""
-
-    js = replace_once(js, "  function applyChinese(resetMarks) {", title_module, "title_module")
-
-    apply_anchor = """    translateNode(document);
-  }"""
-    apply_patched = """    translateNode(document);
-    syncChineseConversationTitles();
-  }"""
-    js = replace_once(js, apply_anchor, apply_patched, "applyChinese_end")
-
-    flush_anchor = """    flushScheduler = createFlushScheduler((batchNodes, batchElements) => {
-      if (cancelled || lang !== 'zh') return;
-      for (const node of batchNodes) translateNode(node);
-      for (const element of batchElements) translateElement(element);
-    });"""
-    flush_patched = """    flushScheduler = createFlushScheduler((batchNodes, batchElements) => {
-      if (cancelled || lang !== 'zh') return;
-      for (const node of batchNodes) translateNode(node);
-      for (const element of batchElements) translateElement(element);
-      syncChineseConversationTitles();
-    });"""
-    js = replace_once(js, flush_anchor, flush_patched, "flushScheduler")
-except AnchorError as exc:
-    sys.stderr.write(f"[警告] 增强补丁部分锚点与新版上游词库不匹配 ({exc})，已自动降级为原生词库。\n")
-    js = raw_js.replace("\r\n", "\n")
-
-final_content = header_comment + "\n" + js.rstrip() + "\n"
-overlay_dir = os.path.dirname(overlay_path)
-os.makedirs(overlay_dir, exist_ok=True)
-fd, tmp_path = tempfile.mkstemp(prefix=".antigravity-hans-overlay.", suffix=".tmp", dir=overlay_dir)
-try:
-    with os.fdopen(fd, "w", encoding="utf-8") as f:
-        f.write(final_content)
-    os.chmod(tmp_path, 0o644)
-    os.replace(tmp_path, overlay_path)
-except Exception:
-    if os.path.exists(tmp_path):
-        os.unlink(tmp_path)
-    raise
+if pids:
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        if not any(subprocess.run(["ps", "-p", str(pid)], stdout=subprocess.DEVNULL).returncode == 0 for pid in pids):
+            break
+        time.sleep(.1)
+    else:
+        sys.exit("[错误] 旧语言会话尚未退出，请稍后重试。")
+    time.sleep(.5)
 PY
 }
 
 cmd_build_overlay() {
   local force="${1:-false}"
   ensure_enhanced_overlay "$force"
-  echo "[成功] 已生成增强汉化覆盖脚本: $OVERLAY_FILE"
+  echo "[成功] 已生成界面本地化覆盖脚本: $OVERLAY_FILE"
 }
 
 run_cdp_watcher() {
@@ -705,6 +299,7 @@ import urllib.parse
 import urllib.request
 
 app_bundle, overlay_path, pid_file, nogui_flag = sys.argv[1:5]
+app_name = os.environ.get("AGY_LANGUAGE_NAME", "Antigravity")
 nogui = nogui_flag == "true"
 main_exe = os.path.join(app_bundle, "Contents", "MacOS", "Antigravity")
 ignored_types = {"worker", "service_worker", "shared_worker", "background_page"}
@@ -730,7 +325,7 @@ def notify_error(msg):
     if nogui:
         safe = msg.replace("\\", "\\\\").replace('"', '\\"')
         subprocess.run(
-            ["osascript", "-e", f'display alert "Antigravity 中文" message "{safe}" as critical'],
+            ["osascript", "-e", f'display alert "{app_name}" message "{safe}" as critical'],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
@@ -1010,7 +605,7 @@ def acquire_port():
         if dport > 0:
             try:
                 read_cdp_json(dport, "/json/version", timeout=1.0)
-                print(f"[信息] 检测到 Antigravity 已以中文调试模式运行 (端口 {dport})，直接附着监视。")
+                print(f"[信息] 检测到 Antigravity 已以本地调试模式运行 (端口 {dport})，直接附着监视。")
                 return dport
             except Exception:
                 pass
@@ -1028,12 +623,12 @@ def acquire_port():
                 break
             time.sleep(0.25)
         if list_antigravity_procs()[1]:
-            raise RuntimeError("原版 Antigravity 未能自动退出，请先保存工作并手动退出后再点「Antigravity 中文」。")
+            raise RuntimeError("Antigravity 未能自动退出，请先保存工作并手动退出后重试。")
 
     port = select_free_port()
     if not os.path.isfile(main_exe):
         raise RuntimeError(f"未找到可执行文件: {main_exe}")
-    print(f"[信息] 正在启动 Antigravity 中文调试会话 (端口 {port})...")
+    print(f"[信息] 正在启动 {app_name} 调试会话 (端口 {port})...")
     subprocess.Popen(
         [main_exe, f"--remote-debugging-port={port}", "--remote-debugging-address=127.0.0.1"],
         stdin=subprocess.DEVNULL,
@@ -1118,7 +713,7 @@ def main():
             notify_error(f"无法建立 CDP 事件连接 (端口 {port})")
             sys.exit(1)
 
-        print(f"[成功] 已进入 Antigravity 中文监视状态 (端口 {port})。")
+        print(f"[成功] 已进入 {app_name} 监视状态 (端口 {port})。")
         last_sweep = time.monotonic()
 
         while not stopping:
@@ -1217,11 +812,12 @@ cmd_start() {
   fi
 
   ensure_enhanced_overlay false
+  stop_language_watchers
 
   if [[ -f "$PLUGIN_DIR/plugin.json" ]]; then
     set_plugin_enabled true
   else
-    echo "[警告] 未在 $PLUGIN_DIR 找到提示词插件，本次仅启用中文界面。" >&2
+    echo "[警告] 未在 $PLUGIN_DIR 找到提示词插件，本次仅启用所选语言界面。" >&2
   fi
 
   cleanup() {
@@ -1246,10 +842,11 @@ cmd_stop() {
   done
   rm -f "$PID_FILE"
   set_plugin_enabled false
-  echo "[成功] 已停止中文汉化监视器，并已关闭 $PLUGIN_NAME 插件（原版入口已恢复纯净）。"
+  echo "[成功] 已停止本地化监视器，并已关闭 $PLUGIN_NAME 插件（原版入口已恢复纯净）。"
 }
 
 cmd_prompt() {
+  [[ $# -le 1 ]] || { echo "[错误] prompt <on|off|status>" >&2; exit 1; }
   local action="${1:-status}"
   case "$action" in
     on)
@@ -1258,11 +855,11 @@ cmd_prompt() {
         exit 1
       fi
       set_plugin_enabled true
-      echo "[成功] 已手动开启全流程中文思考提示词插件 ($PLUGIN_NAME)。"
+      echo "[成功] 已手动开启所选语言提示词插件 ($PLUGIN_NAME)。"
       ;;
     off)
       set_plugin_enabled false
-      echo "[成功] 已手动关闭全流程中文思考提示词插件 ($PLUGIN_NAME)。"
+      echo "[成功] 已手动关闭所选语言提示词插件 ($PLUGIN_NAME)。"
       ;;
     status)
       local state
@@ -1298,13 +895,13 @@ cmd_shortcut() {
   fi
   mkdir -p "$apps_dir"
 
-  local wrapper_app="$apps_dir/Antigravity 中文.app"
+  local wrapper_app="$apps_dir/$APP_NAME.app"
   local contents_dir="$wrapper_app/Contents"
   local macos_dir="$contents_dir/MacOS"
   local resources_dir="$contents_dir/Resources"
   mkdir -p "$macos_dir" "$resources_dir"
 
-  cat >"$contents_dir/Info.plist" <<'PLIST'
+  cat >"$contents_dir/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -1314,11 +911,11 @@ cmd_shortcut() {
 	<key>CFBundleIconFile</key>
 	<string>icon.icns</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.guuguo.antigravity.zh.launcher</string>
+	<string>$BUNDLE_ID</string>
 	<key>CFBundleName</key>
-	<string>Antigravity 中文</string>
+	<string>$APP_NAME</string>
 	<key>CFBundleDisplayName</key>
-	<string>Antigravity 中文</string>
+	<string>$APP_NAME</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>LSUIElement</key>
@@ -1327,13 +924,14 @@ cmd_shortcut() {
 </plist>
 PLIST
 
-  local escaped_self="${self_path//\'/\'\\\'\'}"
+  local escaped_self
+  printf -v escaped_self '%q' "$self_path"
   cat >"$macos_dir/launcher" <<LAUNCHER
 #!/bin/bash
 LOG_DIR="\$HOME/Library/Logs"
-LOG_FILE="\$LOG_DIR/agy-zh.log"
+LOG_FILE="\$LOG_DIR/$COMMAND_NAME.log"
 mkdir -p "\$LOG_DIR"
-nohup '${escaped_self}' start --nogui >> "\$LOG_FILE" 2>&1 &
+nohup ${escaped_self} --lang '$LANG_CODE' start --nogui >> "\$LOG_FILE" 2>&1 &
 LAUNCHER
   chmod 755 "$macos_dir/launcher"
 
@@ -1349,12 +947,12 @@ LAUNCHER
   fi
 
   xattr -cr "$wrapper_app" >/dev/null 2>&1 || true
-  echo "[成功] 已生成独立中文入口应用: $wrapper_app"
+  echo "[成功] 已生成独立语言入口应用: $wrapper_app"
 }
 
 cmd_status() {
   local orig_app shortcut_app plugin_state
-  echo "=== Antigravity 双入口汉化状态 ==="
+  echo "=== $APP_NAME ($LANG_CODE) ==="
 
   if orig_app="$(find_original_app)"; then
     echo "原版入口 (纯净英文): $orig_app"
@@ -1363,22 +961,22 @@ cmd_status() {
   fi
 
   if shortcut_app="$(find_shortcut_app)"; then
-    echo "中文入口 (双效联动): $shortcut_app"
+    echo "$APP_NAME 入口 (双效联动): $shortcut_app"
   else
-    echo "中文入口 (双效联动): 未创建（可运行 agy-zh shortcut 生成）"
+    echo "$APP_NAME 入口 (双效联动): 未创建（可运行 agy-zh shortcut 生成）"
   fi
 
   echo "本地 CDP 注入引擎  : 内置纯脚本引擎（无第三方二进制，零误报）"
   if [[ -f "$OVERLAY_FILE" ]]; then
-    echo "增强汉化覆盖脚本   : 已就绪 ($OVERLAY_FILE)"
+    echo "界面本地化覆盖脚本   : 已就绪 ($OVERLAY_FILE)"
   else
-    echo "增强汉化覆盖脚本   : 未生成（可运行 agy-zh build-overlay 生成）"
+    echo "界面本地化覆盖脚本   : 未生成（可运行 agy-zh build-overlay 生成）"
   fi
 
   if [[ -f "$PLUGIN_DIR/plugin.json" ]]; then
-    echo "中文思考提示词插件 : 已安装 ($PLUGIN_DIR)"
+    echo "语言提示词插件     : 已安装 ($PLUGIN_DIR)"
   else
-    echo "中文思考提示词插件 : 未安装"
+    echo "语言提示词插件     : 未安装"
   fi
 
   plugin_state="$(is_plugin_enabled)"
@@ -1391,15 +989,15 @@ cmd_status() {
   local pids
   pids="$(list_active_watcher_pids | tr '\n' ' ' || true)"
   if [[ -n "${pids// /}" ]]; then
-    echo "后台汉化监视器进程 : 运行中 (PID: ${pids% })"
+    echo "后台本地化监视进程 : 运行中 (PID: ${pids% })"
   else
-    echo "后台汉化监视器进程 : 未运行"
+    echo "后台本地化监视进程 : 未运行"
   fi
 }
 
 cmd_help() {
   cat <<'HELP'
-agy-zh - Antigravity 双入口无损汉化与中文思考提示词联动启动器
+agy-zh - Antigravity 多语言无损界面与语言提示词联动启动器
 
 用法:
   agy-zh [start] [--nogui]   开启中文思考插件并启动 Antigravity 中文界面，退出后自动还原
@@ -1409,8 +1007,10 @@ agy-zh - Antigravity 双入口无损汉化与中文思考提示词联动启动�
                              手动开启、关闭或查询中文思考提示词插件状态
   agy-zh build-overlay [--force]
                              重新拉取词库或刷新增强汉化脚本
-  agy-zh shortcut            在应用程序目录生成「Antigravity 中文.app」
+  agy-zh shortcut            在应用程序目录生成所选语言的独立 .app 入口
   agy-zh help                显示此帮助信息
+  agy-zh --lang ja start     使用指定语言；所有子命令均支持 --lang <code>
+  语言: zh-CN zh-TW ja ko es fr de ru pt-BR
 
 环境变量:
   AGY_ZH_OVERLAY_URL         自定义上游基础汉化 JS 地址
@@ -1430,9 +1030,11 @@ main() {
       cmd_start "$@"
       ;;
     stop)
+      [[ $# -eq 1 ]] || { echo "[错误] stop 不接受位置参数" >&2; exit 1; }
       cmd_stop
       ;;
     status)
+      [[ $# -eq 1 ]] || { echo "[错误] status 不接受位置参数" >&2; exit 1; }
       cmd_status
       ;;
     prompt)
@@ -1451,6 +1053,7 @@ main() {
       fi
       ;;
     shortcut)
+      [[ $# -eq 1 ]] || { echo "[错误] shortcut 不接受位置参数" >&2; exit 1; }
       cmd_shortcut
       ;;
     help|--help|-h)
@@ -1464,4 +1067,4 @@ main() {
   esac
 }
 
-main "$@"
+main "${ARGS[@]+${ARGS[@]}}"

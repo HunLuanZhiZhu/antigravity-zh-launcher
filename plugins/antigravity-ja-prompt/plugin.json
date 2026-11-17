@@ -1,0 +1,15 @@
+{
+  "name": "antigravity-ja-prompt",
+  "displayName": "日本語 — Antigravity",
+  "description": "計画、提示可能な推論の要約、ツール操作の要約、成果物、最終回答には自然な日本語を使用してください。ユーザーが別の言語を明示的に指定した場合は、その指定を優先してください。コードの識別子、API 名、コマンド、ファイルパス、元のエラーメッセージ、必要な専門用語は変更しないでください。内部の思考過程を開示する必要はありません。",
+  "version": "1.1.0",
+  "license": "MIT",
+  "logo": "assets/logo.svg",
+  "author": {
+    "name": "guuguo",
+    "url": "https://github.com/guuguo"
+  },
+  "homepage": "https://github.com/guuguo/antigravity-zh-launcher",
+  "repository": "https://github.com/guuguo/antigravity-zh-launcher",
+  "disabled": true
+}

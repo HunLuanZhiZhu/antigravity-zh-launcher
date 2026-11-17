@@ -1,67 +1,92 @@
-# Antigravity 中文
+[简体中文](README.md) · [English](README.en.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [繁體中文](README.zh-TW.md)
 
-> 为 Antigravity 桌面端提供**开箱即用的完整中文体验** —— 安装后生成独立图标 **「Antigravity 中文」**，点开即享**中文界面 + AI 中文思考与回答**；原有的英文版 **Antigravity** 丝毫不动，双入口自由切换、互不干扰。
-> 如果这个工具帮到了你，欢迎点击右上角 **Star ⭐️** 支持一下，也方便后续获取版本同步更新。
+# Antigravity 多语言启动器
 
-[简体中文](README.md) · [English](README.en.md)
+为 Antigravity 提供独立语言入口、界面翻译和 AI 语言规则。无参数安装仍为 **zh-CN / Antigravity 中文**，原有 `agy-zh` 命令、缓存与插件路径兼容。原版应用文件保持不变。
 
-![全中文界面、运行链路与 AI 中文回答实拍](docs/assets/real-ui-zh.png)
 
-<details>
-<summary>查看更多实拍效果（新会话欢迎页与双入口图标）</summary>
+![Antigravity zh-CN UI](docs/assets/real-ui-zh.png)
 
-![空白新会话中文欢迎页](docs/assets/real-welcome-zh.png)
+## 安装
 
-![原版英文与独立中文双图标并存](docs/assets/real-dual-icons.png)
-
-</details>
-
-## ⚡ 一行命令安装
-
-**macOS**（打开「终端」粘贴运行）：
+默认简体中文的一行安装命令继续有效：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/guuguo/antigravity-zh-launcher/main/install.sh | bash
 ```
 
-**Windows**（打开 **PowerShell** 粘贴运行）：
-
 ```powershell
 irm https://raw.githubusercontent.com/guuguo/antigravity-zh-launcher/main/install.ps1 | iex
 ```
 
----
+安装前先安装 Antigravity。macOS 需要 Bash、Python 3、curl；Windows 使用系统自带 Windows PowerShell 5.1。无需 Node.js 或外部可执行引擎。
 
-## ✨ 装完怎么用？
-
-- **打开中文版**：在**桌面 / 开始菜单（Windows）**或 **应用程序 / 聚焦搜索（macOS）**中打开 **「Antigravity 中文」**，界面自动变中文，AI 也会全程用中文思考和回答。
-- **保留英文原版**：平时直接点原有的 **Antigravity** 图标，依然是原汁原味的英文界面与英文思考，完全不受影响。
-- **退出自动还原**：关闭中文会话或切回原版后会自动还原默认状态，双入口长期共存不串味。
-- **纯脚本零二进制**：Windows 端采用系统原生 PowerShell（.NET WebSocket）、macOS 端采用内置 Bash/Python 实现本地 CDP 注入，**不下载也不运行任何外部 `.exe` 二进制文件**，代码全明文可审计，避免杀软误报。
-
----
-
-## 🗑️ 不想用了？一行命令还原
-
-随时可移除中文入口并恢复原状，不影响原版 Antigravity：
-
-**macOS：**
+从本地仓库安装：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/guuguo/antigravity-zh-launcher/main/uninstall.sh | bash
+bash install.sh --lang zh-CN
 ```
-
-**Windows (PowerShell)：**
 
 ```powershell
-irm https://raw.githubusercontent.com/guuguo/antigravity-zh-launcher/main/uninstall.ps1 | iex
+& .\install.ps1 --lang zh-CN
 ```
 
----
+远程安装（示例：日语；省略 `--lang ja` 即为简体中文）：
 
-[查看进阶使用说明（自定义中文提示词 / 命令行工具 / 彻底清理） →](docs/usage.md)
+```bash
+curl -fsSL https://raw.githubusercontent.com/guuguo/antigravity-zh-launcher/main/install.sh | bash -s -- --lang ja
+```
 
-## 致谢与许可
+```powershell
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/guuguo/antigravity-zh-launcher/main/install.ps1))) --lang ja
+```
 
-- 基础界面汉化词库 JS 脚本参考 [yuexps/Antigravity-Hans](https://github.com/yuexps/Antigravity-Hans) · 本项目代码基于 [MIT License](LICENSE) 开源
-- 感谢 [LINUX DO](https://linux.do/) 社区佬友们的交流与反馈
+| Code | Language / 语言 | Entry | CLI |
+| --- | --- | --- | --- |
+| `zh-CN` | 简体中文（默认） | Antigravity 中文 | `agy-zh` |
+| `zh-TW` | 繁體中文 | Antigravity 繁體中文 | `agy-zh-tw` |
+| `ja` | 日本語 | Antigravity 日本語 | `agy-ja` |
+| `ko` | 한국어 | Antigravity 한국어 | `agy-ko` |
+| `es` | Español | Antigravity Español | `agy-es` |
+| `fr` | Français | Antigravity Français | `agy-fr` |
+| `de` | Deutsch | Antigravity Deutsch | `agy-de` |
+| `ru` | Русский | Antigravity Русский | `agy-ru` |
+| `pt-BR` | Português (Brasil) | Antigravity Português | `agy-pt-br` |
+
+## 使用与卸载
+
+每种语言可重复安装并保留独立图标。Antigravity 共用一个桌面会话，切换语言时会停止上一语言的注入器，并只启用所选 Prompt 插件。关闭本地化会话后插件自动关闭。切回原版请先退出本地化会话，再打开原版入口。
+
+```bash
+agy-zh --lang zh-CN start
+agy-zh --lang zh-CN status
+agy-zh --lang zh-CN prompt status
+bash uninstall.sh --lang zh-CN --purge
+```
+
+```powershell
+agy-zh --lang zh-CN start
+& .\uninstall.ps1 --lang zh-CN --purge
+```
+
+卸载默认只移除简体中文；`--lang` 只移除指定语言。最后一种语言卸载后清理共享运行时。`--purge` 同时清理对应缓存；不会删除其他语言入口。
+
+`--no-shortcut` · `--update-engine` · `--dry-run` · `--help`
+
+Windows 也支持 `-Lang`、`-NoShortcut`、`-UpdateEngine`、`-DryRun`；原有 `AGY_ZH_*` 与 `GEMINI_CONFIG_DIR` 设置继续有效。
+
+## 实现与验证
+
+`locales/index.json` 统一声明语言、入口、命令和插件名称；九份 JSON 使用相同词条键，覆盖常用 IDE 操作、智能体交互和工具状态，欢迎语使用模板，相对时间使用 `Intl.RelativeTimeFormat`。
+
+简体中文继续使用原有上游词库与增强逻辑（`lib/zh-overlay.*`），其他语言共用 `lib/overlay.js`。翻译仅在运行时注入，跳过代码编辑区、用户输入、对话标题和回复正文。未来版本新增或尚未收录的文本保留原文；这不是 Antigravity 官方语言包。
+
+Prompt 插件引导计划、可展示的思考说明、工具摘要与回答使用目标语言，保留代码、路径和原始报错；模型是否遵循及内部思考语言由模型决定。
+
+```bash
+python3 tests/test_launcher.py
+node tests/overlay.test.js
+# Windows PowerShell: & .\tests\powershell.test.ps1
+```
+
+[MIT License](LICENSE) · [Upstream Chinese dictionary / 原有中文词库](https://github.com/yuexps/Antigravity-Hans) · [CLI details](docs/usage.en.md)
